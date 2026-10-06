@@ -1,0 +1,535 @@
+<title>Схема макета Zhuk Home</title>
+<style>
+:root{
+  --bg:#ECEFEC; --surface:#FFFFFF; --surface-2:#F4F6F4;
+  --ink:#16201B; --muted:#5A6861; --line:#D4DBD6; --line-strong:#AEB9B2;
+  --accent:#2346C8; --accent-ink:#FFFFFF; --accent-soft:#E3E8FA;
+  --ok:#1D8656; --ok-soft:#E1F1E8; --ok-ink:#12573A;
+  --warn:#B8760A; --warn-soft:#FAEFD8; --warn-ink:#6E4504;
+  --crit:#CC3526; --crit-soft:#FBE2DE; --crit-ink:#8F1F14;
+  --wood:#E8DCC8; --wood-2:#DBCBB0; --wood-3:#CDB994; --wood-line:#A8906A;
+  --glass:#CFE0E8;
+  --tl-red:#E5392B; --tl-yellow:#F2B21B; --tl-green:#2BB673; --tl-off:rgba(150,160,155,.3);
+  --shadow:0 1px 2px rgba(22,32,27,.06),0 6px 20px rgba(22,32,27,.05);
+  --radius:14px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1210; --surface:#151B18; --surface-2:#1B2320;
+    --ink:#E4EBE7; --muted:#95A39C; --line:#26302B; --line-strong:#3D4A44;
+    --accent:#91A5FF; --accent-ink:#0D1210; --accent-soft:#1E2548;
+    --ok:#45C28B; --ok-soft:#12271D; --ok-ink:#8FDDB8;
+    --warn:#E8AB42; --warn-soft:#2B2213; --warn-ink:#F3CB86;
+    --crit:#F0604F; --crit-soft:#33160F; --crit-ink:#FFA398;
+    --wood:#3A3227; --wood-2:#2F2920; --wood-3:#252019; --wood-line:#6B5A40;
+    --glass:#22343C;
+    --tl-off:rgba(150,160,155,.2);
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1210; --surface:#151B18; --surface-2:#1B2320;
+  --ink:#E4EBE7; --muted:#95A39C; --line:#26302B; --line-strong:#3D4A44;
+  --accent:#91A5FF; --accent-ink:#0D1210; --accent-soft:#1E2548;
+  --ok:#45C28B; --ok-soft:#12271D; --ok-ink:#8FDDB8;
+  --warn:#E8AB42; --warn-soft:#2B2213; --warn-ink:#F3CB86;
+  --crit:#F0604F; --crit-soft:#33160F; --crit-ink:#FFA398;
+  --wood:#3A3227; --wood-2:#2F2920; --wood-3:#252019; --wood-line:#6B5A40;
+  --glass:#22343C;
+  --tl-off:rgba(150,160,155,.2);
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{background:var(--bg)}
+body{margin:0;color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin-inline:auto;padding-inline:16px;padding-block:24px 48px}
+@media (min-width:700px){.wrap{padding-inline:24px}}
+h1{font-size:clamp(24px,4.5vw,32px);letter-spacing:-.022em;margin:0 0 6px;text-wrap:balance}
+h2{font-size:19px;margin:0;letter-spacing:-.012em}
+h3{font-size:13px;margin:0 0 8px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:750}
+p{margin:0 0 12px;max-width:66ch}
+.lead{color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+button{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* спільне керування станом */
+.statebar{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin-inline:-16px;padding:10px 16px;display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center}
+@media (min-width:700px){.statebar{margin-inline:-24px;padding-inline:24px}}
+.statebar .lbl{font-size:13px;font-weight:650;color:var(--muted)}
+.segs{display:flex;gap:2px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+.segs button{border:0;background:none;padding:6px 11px;border-radius:7px;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer}
+.segs button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+
+/* варіант */
+.variant{margin-top:34px;background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden}
+.v-head{display:flex;gap:6px 14px;align-items:baseline;flex-wrap:wrap;padding:16px 18px 0}
+.v-tag{font-size:11.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);background:var(--accent-soft);padding:3px 9px;border-radius:999px}
+.v-weight{margin-left:auto;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.v-body{display:grid;gap:16px;padding:14px 18px 18px}
+@media (min-width:860px){.v-body{grid-template-columns:1.5fr 1fr;align-items:start}}
+.stage{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0}
+.v-side{display:grid;gap:14px;align-content:start;min-width:0}
+.pros{display:grid;gap:6px;margin:0;padding:0;list-style:none;font-size:13.5px}
+.pros li{display:grid;grid-template-columns:1.1em 1fr;gap:8px}
+.pros li::before{font-weight:800}
+.pros li.y::before{content:"+";color:var(--ok)}
+.pros li.n::before{content:"−";color:var(--crit)}
+
+/* список зон */
+.zones{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.zone{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;background:var(--surface);border:0;padding:9px 11px;text-align:left;cursor:pointer;width:100%}
+.zone:hover,.zone.hl{background:var(--surface-2)}
+.zone i{width:9px;height:9px;border-radius:50%;background:var(--line-strong);flex:none}
+.zone.s-on i{background:var(--ok)}
+.zone.s-act i{background:var(--accent)}
+.zone.s-hit i{background:var(--crit)}
+.zone b{font-weight:620;font-size:13.5px}
+.zone span{font-size:12.5px;color:var(--muted);justify-self:end;text-align:right}
+
+/* деталі */
+.detail{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 13px;font-size:13.5px}
+.detail dt{color:var(--muted);font-size:12.5px}
+.detail dd{margin:0 0 8px;font-weight:620}
+.detail dd:last-child{margin-bottom:0}
+
+/* --- варіант 1: ізометрія SVG --- */
+.iso{display:block;width:100%;height:auto}
+.iso .face-l{fill:var(--wood-2)}
+.iso .face-r{fill:var(--wood-3)}
+.iso .roof-l{fill:var(--wood)}
+.iso .roof-r{fill:var(--wood-2)}
+.iso .edge{fill:none;stroke:var(--wood-line);stroke-width:1.1;stroke-linejoin:round}
+.iso .win{fill:var(--glass);stroke:var(--wood-line);stroke-width:1.1}
+.iso .shade{fill:var(--wood-line);opacity:.85;transition:transform .6s ease}
+.iso .bar{fill:var(--warn);transition:transform 1.2s ease}
+.iso .lbl{font-size:8.5px;fill:var(--muted);font-weight:700;letter-spacing:.06em}
+.hot{cursor:pointer}
+.hot .halo{fill:var(--line-strong);opacity:0;transition:opacity .25s}
+.hot .core{fill:var(--line-strong);stroke:var(--surface);stroke-width:1.4;transition:fill .25s}
+.hot.s-on .core{fill:var(--ok)}
+.hot.s-on .halo{fill:var(--ok);opacity:.2}
+.hot.s-act .core{fill:var(--accent)}
+.hot.s-act .halo{fill:var(--accent);opacity:.28}
+.hot.s-hit .core{fill:var(--crit)}
+.hot.s-hit .halo{fill:var(--crit);opacity:.32;animation:ping 1.1s ease-out infinite;transform-box:fill-box;transform-origin:center}
+.hot.hl .halo{opacity:.45}
+@keyframes ping{from{transform:scale(.6);opacity:.55}to{transform:scale(1.7);opacity:0}}
+.iso .led{transition:fill .2s}
+
+/* --- варіант 2: коробка CSS 3D --- */
+.scene3d{perspective:900px;height:330px;display:grid;place-items:center}
+.box{position:relative;width:210px;height:140px;transform-style:preserve-3d;transition:transform .7s cubic-bezier(.4,0,.2,1);transform:rotateX(-18deg) rotateY(var(--ry,-32deg))}
+.fc{position:absolute;background:var(--wood-2);border:1px solid var(--wood-line);display:grid;align-content:start;gap:5px;padding:9px;overflow:hidden}
+.fc-t{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--wood-line)}
+.f-front{width:210px;height:140px;transform:translateZ(75px)}
+.f-back{width:210px;height:140px;transform:rotateY(180deg) translateZ(75px);background:var(--wood-3)}
+.f-right{width:150px;height:140px;left:30px;transform:rotateY(90deg) translateZ(105px);background:var(--wood-3)}
+.f-left{width:150px;height:140px;left:30px;transform:rotateY(-90deg) translateZ(105px)}
+.f-top{width:210px;height:150px;top:-5px;transform:rotateX(90deg) translateZ(75px);background:var(--wood)}
+.f-bottom{width:210px;height:150px;top:-5px;transform:rotateX(-90deg) translateZ(75px);background:var(--wood-3);opacity:.6}
+.pin{display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:3px 6px;font-size:10.5px;font-weight:620;cursor:pointer;color:var(--ink);text-align:left;width:max-content;max-width:100%}
+.pin i{width:7px;height:7px;border-radius:50%;background:var(--line-strong);flex:none}
+.pin.s-on i{background:var(--ok)}
+.pin.s-act i{background:var(--accent)}
+.pin.s-hit i{background:var(--crit)}
+.pin.hl{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.rot{display:flex;gap:6px;justify-content:center;margin-top:4px;flex-wrap:wrap}
+.rot button{border:1px solid var(--line-strong);background:var(--surface);border-radius:8px;padding:5px 10px;font-size:12.5px;font-weight:600;cursor:pointer}
+.rot button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* --- варіант 3: розгортка --- */
+.net{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+.np{background:var(--wood-2);border:1px solid var(--wood-line);border-radius:8px;padding:8px;display:grid;gap:5px;align-content:start;min-height:74px}
+.np.roof{background:var(--wood)}
+.np.back{background:var(--wood-3)}
+.np-t{font-size:9.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--wood-line);display:flex;justify-content:space-between;gap:6px}
+.np-t em{font-style:normal;opacity:.75}
+.sp{grid-column:span 1}
+.ghost{background:none;border:1px dashed var(--line-strong);opacity:.5}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px;font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:50%}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:10px}
+th,td{text-align:left;padding:8px 10px 8px 0;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;color:var(--muted);font-weight:650}
+.tblwrap{overflow-x:auto}
+.foot{margin-top:34px;border-top:1px solid var(--line);padding-top:16px;font-size:13.5px;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <h1>Схема макета</h1>
+  <p class="lead">Три способи показати будиночок у вебінтерфейсі. Дані — з живого макета: 25 °C, вологість 53 %, чисте повітря, шторка зачинена, шлагбаум опущений. Перемкніть стан унизу заголовка, щоб побачити, як кожен варіант читається в тривозі.</p>
+
+  <div class="statebar">
+    <span class="lbl">Стан будинку</span>
+    <div class="segs" role="group" aria-label="Стан будинку">
+      <button type="button" data-state="calm" aria-pressed="true">Спокій</button>
+      <button type="button" data-state="motion" aria-pressed="false">Рух у кімнаті</button>
+      <button type="button" data-state="co" aria-pressed="false">Тривога CO</button>
+    </div>
+  </div>
+
+  <!-- ВАРІАНТ 1 -->
+  <section class="variant">
+    <div class="v-head">
+      <span class="v-tag">Варіант 1</span>
+      <h2>Умовна ізометрія</h2>
+      <span class="v-weight num">≈ 6 КБ · +2 КБ у gzip</span>
+    </div>
+    <div class="v-body">
+      <div class="stage">
+        <svg class="iso" viewBox="0 0 420 330" role="img" aria-labelledby="iso-t">
+          <title id="iso-t">Ізометрична схема будиночка: дах із датчиками, фасад з охороною, правий бік із паркінгом</title>
+          <!-- тінь -->
+          <ellipse cx="200" cy="296" rx="150" ry="20" fill="var(--wood-line)" opacity=".12"/>
+          <!-- стіни -->
+          <path class="face-l" d="M200 205 L50 130 L50 225 L200 300 Z"/>
+          <path class="face-r" d="M200 205 L350 130 L350 225 L200 300 Z"/>
+          <!-- дах -->
+          <path class="roof-r" d="M350 130 L200 55 L125 42 L275 117 Z"/>
+          <path class="roof-l" d="M200 205 L50 130 L125 42 L275 117 Z"/>
+          <path class="edge" d="M200 205 L50 130 L50 225 L200 300 Z M200 205 L350 130 L350 225 L200 300 Z M200 205 L125 42 L275 117 Z M350 130 L275 117 M50 130 L125 42 M200 205 V300"/>
+          <!-- вікно зі шторкою на фасаді -->
+          <g class="hot" data-zone="win" tabindex="0" role="button" aria-label="Шторка вікна">
+            <path class="win" d="M163 213 L120 191.5 L120 217 L163 238.5 Z"/>
+            <path class="shade" id="iso-shade" d="M163 213 L120 191.5 L120 205 L163 226.5 Z"/>
+            <circle class="halo" cx="141" cy="215" r="13"/>
+            <circle class="core" cx="141" cy="215" r="5"/>
+          </g>
+          <!-- клавіатура -->
+          <g class="hot" data-zone="kbd" tabindex="0" role="button" aria-label="Клавіатура">
+            <path d="M104 196 L74 181 L74 199 L104 214 Z" fill="var(--ink)" opacity=".55"/>
+            <circle class="halo" cx="89" cy="197" r="12"/>
+            <circle class="core" cx="89" cy="197" r="5"/>
+          </g>
+          <g class="hot" data-zone="pir" tabindex="0" role="button" aria-label="Датчик руху">
+            <circle class="halo" cx="140" cy="253" r="13"/><circle class="core" cx="140" cy="253" r="5.5"/>
+          </g>
+          <g class="hot" data-zone="buz" tabindex="0" role="button" aria-label="Зумер">
+            <circle class="halo" cx="92" cy="232" r="12"/><circle class="core" cx="92" cy="232" r="5"/>
+          </g>
+          <!-- дах: датчики середовища -->
+          <g class="hot" data-zone="dht" tabindex="0" role="button" aria-label="Температура і вологість">
+            <circle class="halo" cx="205" cy="146" r="13"/><circle class="core" cx="205" cy="146" r="5.5"/>
+          </g>
+          <g class="hot" data-zone="ldr" tabindex="0" role="button" aria-label="Освітленість">
+            <circle class="halo" cx="168" cy="128" r="13"/><circle class="core" cx="168" cy="128" r="5.5"/>
+          </g>
+          <g class="hot" data-zone="snd" tabindex="0" role="button" aria-label="Датчик звуку">
+            <circle class="halo" cx="131" cy="110" r="13"/><circle class="core" cx="131" cy="110" r="5.5"/>
+          </g>
+          <g class="hot" data-zone="gas" tabindex="0" role="button" aria-label="Датчик чадного газу">
+            <circle class="halo" cx="243" cy="98" r="14"/><circle class="core" cx="243" cy="98" r="6"/>
+          </g>
+          <!-- паркінг на правому боці -->
+          <g class="hot" data-zone="gate" tabindex="0" role="button" aria-label="Шлагбаум">
+            <circle cx="268" cy="212" r="3.5" fill="var(--ink)"/>
+            <rect class="bar" id="iso-bar" x="268" y="209" width="56" height="4" rx="2" transform-origin="268px 211px"/>
+            <circle class="halo" cx="268" cy="212" r="13"/><circle class="core" cx="268" cy="212" r="5"/>
+          </g>
+          <g class="hot" data-zone="dist" tabindex="0" role="button" aria-label="Далекомір">
+            <circle class="halo" cx="243" cy="243" r="12"/><circle class="core" cx="243" cy="243" r="5"/>
+          </g>
+          <g class="hot" data-zone="seg" tabindex="0" role="button" aria-label="Дисплей паркінгу">
+            <rect x="222" y="216" width="26" height="11" rx="2" fill="var(--ink)" opacity=".75"/>
+            <text x="235" y="225" text-anchor="middle" font-size="8" font-weight="800" fill="var(--tl-red)" id="iso-seg">17</text>
+            <circle class="halo" cx="235" cy="221" r="12"/><circle class="core" cx="235" cy="221" r="4.5"/>
+          </g>
+          <g class="hot" data-zone="tl" tabindex="0" role="button" aria-label="Світлофор">
+            <rect x="322" y="160" width="12" height="28" rx="3" fill="var(--ink)" opacity=".8"/>
+            <circle class="led" id="iso-tr" cx="328" cy="167" r="3" fill="var(--tl-red)"/>
+            <circle class="led" id="iso-ty" cx="328" cy="174" r="3" fill="var(--tl-off)"/>
+            <circle class="led" id="iso-tg" cx="328" cy="181" r="3" fill="var(--tl-off)"/>
+            <circle class="halo" cx="328" cy="174" r="13"/><circle class="core" cx="328" cy="174" r="4.5"/>
+          </g>
+          <!-- вентиляція: значок усередині -->
+          <g class="hot" data-zone="fan" tabindex="0" role="button" aria-label="Вентиляція">
+            <circle class="halo" cx="305" cy="196" r="13"/><circle class="core" cx="305" cy="196" r="5"/>
+          </g>
+          <text class="lbl" x="88" y="278">ФАСАД · ОХОРОНА</text>
+          <text class="lbl" x="252" y="278">ПАРКІНГ</text>
+          <text class="lbl" x="150" y="86">ДАХ · СЕРЕДОВИЩЕ</text>
+        </svg>
+        <div class="legend">
+          <span><i style="background:var(--ok)"></i>контролюється</span>
+          <span><i style="background:var(--line-strong)"></i>не контролюється</span>
+          <span><i style="background:var(--accent)"></i>активність</span>
+          <span><i style="background:var(--crit)"></i>спрацював</span>
+        </div>
+      </div>
+      <div class="v-side">
+        <div>
+          <h3>Зони</h3>
+          <div class="zones" data-list="iso"></div>
+        </div>
+        <ul class="pros">
+          <li class="y">Увесь стан видно одразу, без жодного кліку</li>
+          <li class="y">Найлегший: чиста векторна графіка, анімації станів безплатні</li>
+          <li class="y">Кожен датчик фокусується з клавіатури й читається скрін-рідером</li>
+          <li class="n">Розташування зон умовне: шторка й вентилятор насправді на інших гранях</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ВАРІАНТ 2 -->
+  <section class="variant">
+    <div class="v-head">
+      <span class="v-tag">Варіант 2</span>
+      <h2>Коробка з обертанням</h2>
+      <span class="v-weight num">≈ 9 КБ · +3 КБ у gzip</span>
+    </div>
+    <div class="v-body">
+      <div class="stage">
+        <div class="scene3d">
+          <div class="box" id="box">
+            <div class="fc f-front"><span class="fc-t">C · фасад</span><div id="fc-front"></div></div>
+            <div class="fc f-right"><span class="fc-t">D · паркінг</span><div id="fc-right"></div></div>
+            <div class="fc f-back"><span class="fc-t">E · задня</span><div id="fc-back"></div></div>
+            <div class="fc f-left"><span class="fc-t">B · вікно</span><div id="fc-left"></div></div>
+            <div class="fc f-top"><span class="fc-t">F · G · дах</span><div id="fc-top"></div></div>
+            <div class="fc f-bottom"><span class="fc-t">A · низ</span></div>
+          </div>
+        </div>
+        <div class="rot" role="group" aria-label="Поворот макета">
+          <button type="button" data-ry="-32" aria-pressed="true">Фасад</button>
+          <button type="button" data-ry="-122" aria-pressed="false">Паркінг</button>
+          <button type="button" data-ry="-212" aria-pressed="false">Задня</button>
+          <button type="button" data-ry="-302" aria-pressed="false">Вікно</button>
+          <button type="button" data-ry="top" aria-pressed="false">Дах</button>
+        </div>
+      </div>
+      <div class="v-side">
+        <div>
+          <h3>Зони</h3>
+          <div class="zones" data-list="box"></div>
+        </div>
+        <ul class="pros">
+          <li class="y">Чесна геометрія: кожен модуль на тій грані, де він справді стоїть</li>
+          <li class="y">Обертання — справжнє 3D, але без жодної бібліотеки</li>
+          <li class="n">Щоб побачити шторку чи вентилятор, треба крутити — це зайвий крок щодня</li>
+          <li class="n">Підписи на гранях під кутом читаються гірше, на телефоні тісно</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ВАРІАНТ 3 -->
+  <section class="variant">
+    <div class="v-head">
+      <span class="v-tag">Варіант 3</span>
+      <h2>Розгортка панелей</h2>
+      <span class="v-weight num">≈ 5 КБ · +2 КБ у gzip</span>
+    </div>
+    <div class="v-body">
+      <div class="stage">
+        <div class="net">
+          <div class="np ghost" aria-hidden="true"></div>
+          <div class="np roof"><span class="np-t">F · G <em>дах</em></span><div id="np-roof"></div></div>
+          <div class="np ghost" aria-hidden="true"></div>
+          <div class="np"><span class="np-t">B <em>вікно</em></span><div id="np-left"></div></div>
+          <div class="np"><span class="np-t">C <em>фасад</em></span><div id="np-front"></div></div>
+          <div class="np"><span class="np-t">D <em>паркінг</em></span><div id="np-right"></div></div>
+          <div class="np ghost" aria-hidden="true"></div>
+          <div class="np back"><span class="np-t">E <em>задня</em></span><div id="np-back"></div></div>
+          <div class="np ghost" aria-hidden="true"></div>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--ok)"></i>контролюється</span>
+          <span><i style="background:var(--accent)"></i>активність</span>
+          <span><i style="background:var(--crit)"></i>спрацював</span>
+        </div>
+      </div>
+      <div class="v-side">
+        <div>
+          <h3>Зони</h3>
+          <div class="zones" data-list="net"></div>
+        </div>
+        <ul class="pros">
+          <li class="y">Видно всі сім панелей одночасно й чесно, без обертання</li>
+          <li class="y">Найпростіше зробити адаптивним: на телефоні стає стовпчиком</li>
+          <li class="n">Виглядає як інструкція зі збирання, а не як панель керування</li>
+          <li class="n">Просторове чуття втрачається: важко зрозуміти, де що відносно себе</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="variant">
+    <div class="v-head"><h2>Що вибрати</h2></div>
+    <div class="v-body" style="display:block">
+      <p>Різниця у вазі між варіантами — одиниці кілобайтів, тож місце у флеші ESP не є аргументом. Вирішує те, як панель поводиться щодня.</p>
+      <div class="tblwrap">
+        <table>
+          <thead><tr><th>Критерій</th><th>Ізометрія</th><th>Коробка</th><th>Розгортка</th></tr></thead>
+          <tbody>
+            <tr><td>Стан видно без дій</td><td>так</td><td>ні, тільки три грані</td><td>так</td></tr>
+            <tr><td>Відповідає реальному макету</td><td>умовно</td><td>точно</td><td>точно</td></tr>
+            <tr><td>Зручно на телефоні</td><td>так</td><td>тісно</td><td>так</td></tr>
+            <tr><td>Впізнаваний силует будинку</td><td>так</td><td>так</td><td>ні</td></tr>
+            <tr><td>Клавіатура й скрін-рідер</td><td>так</td><td>так</td><td>так</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="margin-top:14px">Практична порада: панель відповідає на питання «що зараз удома», а не «де фізично стоїть модуль». Для другого є розділ «Обладнання» з розпіновкою. Тому <b>варіант 1</b> виглядає найдоречнішим для головного екрана, а <b>варіант 3</b> — як схема в розділі обладнання, де чесна відповідність панелям справді потрібна.</p>
+    </div>
+  </section>
+
+  <p class="foot">Літери на панелях — маркування з фанери макета. Дані статичні, це прототип вигляду: у робочому інтерфейсі вони приходять від Nanit через ESP кадрами стану.</p>
+</div>
+
+<script>
+const ZONES = [
+  {id:"dht", n:"Температура і вологість", v:"25 °C · 53 %", hw:"DHT11", p:"F", face:"top", s:"on"},
+  {id:"ldr", n:"Освітленість", v:"світло", hw:"фоторезистор", p:"F", face:"top", s:"on"},
+  {id:"snd", n:"Звук", v:"тиша", hw:"MH-Sensor", p:"F", face:"top", s:"on"},
+  {id:"gas", n:"Чадний газ", v:"0 / 100", hw:"MQ-7", p:"G", face:"top", s:"on"},
+  {id:"pir", n:"Рух", v:"спокій", hw:"HC-SR501", p:"C", face:"front", s:"off"},
+  {id:"buz", n:"Зумер", v:"мовчить", hw:"пасивний", p:"C", face:"front", s:"off"},
+  {id:"kbd", n:"Клавіатура", v:"код 4 цифри", hw:"мембранна 4×4", p:"C", face:"front", s:"off"},
+  {id:"win", n:"Шторка", v:"зачинена · ручний", hw:"серво + рейка", p:"B", face:"left", s:"on"},
+  {id:"gate", n:"Шлагбаум", v:"зачинено", hw:"28BYJ-48", p:"D", face:"right", s:"off"},
+  {id:"dist", n:"Далекомір", v:"17 см", hw:"HC-SR04", p:"D", face:"right", s:"off"},
+  {id:"tl", n:"Світлофор", v:"червоний", hw:"3 світлодіоди", p:"D", face:"right", s:"off"},
+  {id:"seg", n:"Дисплей паркінгу", v:"17", hw:"TM1637", p:"D", face:"right", s:"off"},
+  {id:"fan", n:"Вентиляція", v:"вимкнено", hw:"двигун 5 В", p:"E", face:"back", s:"off"},
+  {id:"scr", n:"Екран", v:"огляд", hw:"ST7735 128×160", p:"—", face:"front", s:"off"}
+];
+
+const STATES = {
+  calm:{},
+  motion:{pir:{v:"є рух", s:"act"}, snd:{v:"крок", s:"act"}, scr:{v:"рух у кімнаті"}},
+  co:{gas:{v:"78 / 100", s:"hit"}, fan:{v:"працює · провітрювання", s:"act"}, buz:{v:"сирена", s:"hit"},
+      win:{v:"відчинена · тривога", s:"act"}, scr:{v:"CO небезпечно"}}
+};
+
+let state = "calm", picked = null;
+
+function cur(z){
+  const o = STATES[state][z.id] || {};
+  return {...z, v:o.v ?? z.v, s:o.s ?? z.s};
+}
+function cls(s){ return s === "on" ? "s-on" : s === "act" ? "s-act" : s === "hit" ? "s-hit" : ""; }
+
+/* списки зон — однакові для всіх трьох варіантів */
+function buildLists(){
+  document.querySelectorAll("[data-list]").forEach(box => {
+    box.textContent = "";
+    ZONES.forEach(z => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "zone"; b.dataset.zone = z.id;
+      b.innerHTML = '<i></i><b></b><span></span>';
+      b.querySelector("b").textContent = z.n;
+      b.addEventListener("click", () => pick(z.id));
+      box.appendChild(b);
+    });
+  });
+}
+
+/* грані коробки і панелі розгортки */
+function buildFaces(){
+  const put = (host, list) => {
+    if (!host) return;
+    host.textContent = "";
+    list.forEach(z => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "pin"; b.dataset.zone = z.id;
+      b.innerHTML = '<i></i><span></span>';
+      b.querySelector("span").textContent = z.n;
+      b.addEventListener("click", e => { e.stopPropagation(); pick(z.id); });
+      host.appendChild(b);
+    });
+  };
+  const by = f => ZONES.filter(z => z.face === f);
+  put(document.getElementById("fc-front"), by("front"));
+  put(document.getElementById("fc-right"), by("right"));
+  put(document.getElementById("fc-back"), by("back"));
+  put(document.getElementById("fc-left"), by("left"));
+  put(document.getElementById("fc-top"), by("top"));
+  put(document.getElementById("np-front"), by("front"));
+  put(document.getElementById("np-right"), by("right"));
+  put(document.getElementById("np-back"), by("back"));
+  put(document.getElementById("np-left"), by("left"));
+  put(document.getElementById("np-roof"), by("top"));
+}
+
+function render(){
+  ZONES.forEach(z => {
+    const c = cur(z);
+    document.querySelectorAll('[data-zone="' + z.id + '"]').forEach(el => {
+      el.classList.remove("s-on","s-act","s-hit");
+      if (cls(c.s)) el.classList.add(cls(c.s));
+      el.classList.toggle("hl", picked === z.id);
+      const val = el.querySelector("span:last-child");
+      if (el.classList.contains("zone") && val) val.textContent = c.v;
+      if (el.tagName.toLowerCase() === "g") el.setAttribute("aria-label", c.n + ": " + c.v);
+    });
+  });
+
+  // живі деталі на ізометрії
+  const g = cur(ZONES.find(z => z.id === "gate"));
+  document.getElementById("iso-bar").style.transform = g.v.indexOf("відкр") === 0 ? "rotate(-52deg)" : "rotate(0deg)";
+  const w = cur(ZONES.find(z => z.id === "win"));
+  const open = w.v.indexOf("відчин") === 0;
+  document.getElementById("iso-shade").style.transform = open ? "translate(-21px,-10.5px)" : "translate(0,0)";
+  const alarm = state === "co";
+  document.getElementById("iso-tr").setAttribute("fill", alarm ? "var(--tl-off)" : "var(--tl-red)");
+  document.getElementById("iso-tg").setAttribute("fill", alarm ? "var(--tl-green)" : "var(--tl-off)");
+  document.getElementById("iso-seg").textContent = alarm ? "----" : "17";
+
+  // деталі вибраної зони
+  document.querySelectorAll("[data-detail]").forEach(d => d.remove());
+  if (picked){
+    const z = cur(ZONES.find(x => x.id === picked));
+    document.querySelectorAll(".v-side").forEach(side => {
+      const dl = document.createElement("dl");
+      dl.className = "detail"; dl.dataset.detail = "1";
+      dl.innerHTML = "<dt>Зона</dt><dd></dd><dt>Стан</dt><dd></dd><dt>Модуль</dt><dd></dd><dt>Панель макета</dt><dd></dd>";
+      const dd = dl.querySelectorAll("dd");
+      dd[0].textContent = z.n; dd[1].textContent = z.v; dd[2].textContent = z.hw; dd[3].textContent = z.p;
+      side.insertBefore(dl, side.firstChild);
+    });
+  }
+}
+
+function pick(id){ picked = (picked === id) ? null : id; render(); }
+
+document.querySelectorAll(".statebar button").forEach(b => {
+  b.addEventListener("click", () => {
+    state = b.dataset.state;
+    document.querySelectorAll(".statebar button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    render();
+  });
+});
+
+document.querySelectorAll(".rot button").forEach(b => {
+  b.addEventListener("click", () => {
+    const box = document.getElementById("box");
+    document.querySelectorAll(".rot button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    if (b.dataset.ry === "top"){
+      box.style.transform = "rotateX(-78deg) rotateY(-32deg)";
+    } else {
+      box.style.transform = "rotateX(-18deg) rotateY(" + b.dataset.ry + "deg)";
+    }
+  });
+});
+
+document.querySelectorAll(".iso .hot").forEach(g => {
+  g.addEventListener("click", () => pick(g.dataset.zone));
+  g.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " "){ e.preventDefault(); pick(g.dataset.zone); }
+  });
+});
+
+buildLists();
+buildFaces();
+render();
+</script>

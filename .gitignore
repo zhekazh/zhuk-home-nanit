@@ -1,0 +1,25 @@
+# Особисті нотатки — будь-яка тека local/ на будь-якому рівні
+local/
+
+# Артефакти збірки Arduino
+esp/build/
+*.bin
+*.elf
+*.map
+*.hex
+
+# Python
+__pycache__/
+*.pyc
+
+# Сирі логи налагодження макета: те, що з них вивчено, переказано в docs/hardware.md
+nanit/hw_test/*.log
+nanit/hw_test/*.out
+nanit/hw_test/*.txt
+
+# Кадри з навчального відео Nanit — чужий контент, не для публікації
+docs/2026-09-*.png
+
+# Сміття інструментів
+.playwright-mcp/
+.DS_Store

@@ -1,0 +1,2451 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Демонстрація вебінтерфейсу Zhuk Home: макет розумного будинку Nanit з імітованими датчиками.">
+<style>:root{color-scheme:light}body{margin:0}</style>
+<script>
+// ?theme=dark|light — перевірити другу тему, не чіпаючи налаштування системи.
+// Раніше це робила обгортка serve.py; тепер сторінка самодостатня й стамплює тему сама.
+(function(){try{var t=new URLSearchParams(location.search).get("theme");
+if(t==="dark"||t==="light")document.documentElement.setAttribute("data-theme",t);}catch(e){}})();
+</script>
+<!-- Демонстрація інтерфейсу з імітованим будинком. Робоча сторінка, вшита у прошивку
+     ESP8266, — це app.html; вони навмисно розійшлися (див. docs/esp-module.md). -->
+<title>Zhuk Home</title>
+<style>
+:root{
+  --bg:#ECEFEC; --surface:#FFFFFF; --surface-2:#F4F6F4; --seg-active:#FFFFFF;
+  --ink:#16201B; --muted:#5A6861; --line:#D4DBD6; --line-strong:#AEB9B2;
+  --accent:#2346C8; --accent-ink:#FFFFFF; --accent-soft:#E3E8FA;
+  --ok:#1D8656; --ok-soft:#E1F1E8; --ok-ink:#12573A;
+  --warn:#B8760A; --warn-soft:#FAEFD8; --warn-ink:#6E4504;
+  --crit:#CC3526; --crit-soft:#FBE2DE; --crit-ink:#8F1F14; --on-crit:#FFFFFF;
+  --alarm-bg:#C4301F; --alarm-bg-2:#A82415;
+  --wood:#E8DCC8; --wood-2:#DBCBB0; --wood-3:#CDB994; --wood-line:#A8906A; --glass:#CFE0E8;
+  --plan-floor:#F7F9F7;
+  --seg-bg:#171A18; --seg-on:#FF4B3E; --seg-off:rgba(255,75,62,.10);
+  --tl-red:#E5392B; --tl-yellow:#F2B21B; --tl-green:#2BB673; --tl-off:rgba(150,160,155,.28);
+  --shadow:0 1px 2px rgba(22,32,27,.06),0 6px 20px rgba(22,32,27,.05);
+  --radius:14px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1210; --surface:#151B18; --surface-2:#1B2320; --seg-active:#2A3530;
+    --ink:#E4EBE7; --muted:#95A39C; --line:#26302B; --line-strong:#3D4A44;
+    --accent:#91A5FF; --accent-ink:#0D1210; --accent-soft:#1E2548;
+    --ok:#45C28B; --ok-soft:#12271D; --ok-ink:#8FDDB8;
+    --warn:#E8AB42; --warn-soft:#2B2213; --warn-ink:#F3CB86;
+    --crit:#F0604F; --crit-soft:#33160F; --crit-ink:#FFA398; --on-crit:#FFFFFF;
+    --alarm-bg:#B3281A; --alarm-bg-2:#8E1D11;
+    --wood:#3A3227; --wood-2:#2F2920; --wood-3:#252019; --wood-line:#6B5A40; --glass:#22343C;
+    --plan-floor:#101613;
+    --tl-off:rgba(150,160,155,.18);
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1210; --surface:#151B18; --surface-2:#1B2320; --seg-active:#2A3530;
+  --ink:#E4EBE7; --muted:#95A39C; --line:#26302B; --line-strong:#3D4A44;
+  --accent:#91A5FF; --accent-ink:#0D1210; --accent-soft:#1E2548;
+  --ok:#45C28B; --ok-soft:#12271D; --ok-ink:#8FDDB8;
+  --warn:#E8AB42; --warn-soft:#2B2213; --warn-ink:#F3CB86;
+  --crit:#F0604F; --crit-soft:#33160F; --crit-ink:#FFA398; --on-crit:#FFFFFF;
+  --alarm-bg:#B3281A; --alarm-bg-2:#8E1D11;
+  --wood:#3A3227; --wood-2:#2F2920; --wood-3:#252019; --wood-line:#6B5A40; --glass:#22343C;
+  --plan-floor:#101613;
+  --tl-off:rgba(150,160,155,.18);
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{background:var(--bg)}
+body{color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans",Ubuntu,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+h1,h2,h3{text-wrap:balance}
+
+.shell{padding-bottom:76px}
+@media (min-width:900px){.shell{padding-bottom:0}}
+.wrap{max-width:1120px;margin-inline:auto;padding-inline:16px}
+@media (min-width:700px){.wrap{padding-inline:24px}}
+
+/* top bar */
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+.topbar-in{display:flex;align-items:center;gap:12px 20px;min-height:62px;flex-wrap:wrap;padding-block:8px}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto}
+.brand-mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;flex:none}
+.brand-mark svg{width:20px;height:20px}
+.brand-name{font-weight:760;letter-spacing:-.01em;font-size:17px;line-height:1.1}
+.brand-sub{font-size:12px;color:var(--muted)}
+.topnav{display:none;gap:2px}
+@media (min-width:900px){.topnav{display:flex}}
+.topnav button{border:0;background:none;padding:8px 12px;border-radius:9px;font-weight:600;color:var(--muted);cursor:pointer}
+.topnav button:hover{color:var(--ink);background:var(--surface-2)}
+.topnav button[aria-current="page"]{color:var(--ink);background:var(--surface)}
+.status{display:flex;gap:6px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;font-size:12.5px;color:var(--muted);background:var(--surface);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+.chip[data-state="off"]{color:var(--crit-ink);border-color:var(--crit)}
+.chip[data-state="off"] .dot{background:var(--crit)}
+@media (max-width:1340px){.hide-sm{display:none}}
+
+#banners{display:grid;gap:8px}
+#banners:not(:empty){padding-top:12px}
+.banner{display:flex;gap:10px 16px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:12px 16px;border-radius:12px;font-size:14px;font-weight:550}
+.banner.warn{background:var(--warn-soft);color:var(--warn-ink)}
+.banner.crit{background:var(--alarm-bg);color:var(--on-crit)}
+.banner .btn{min-height:34px;padding:0 12px;background:transparent;border-color:currentColor;color:inherit}
+
+main{padding-block:20px 8px}
+.view[hidden]{display:none}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:0 16px;border-radius:10px;border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);font-weight:600;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.danger{color:var(--crit-ink);border-color:var(--crit)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+fieldset.controls{border:0;margin:0;padding:0;min-width:0}
+fieldset.controls:disabled .device,fieldset.controls:disabled .scenes,fieldset.controls:disabled .climate{opacity:.62}
+
+/* security hero */
+.hero{display:grid;gap:20px;padding:20px;border-radius:18px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);transition:background-color .4s,color .4s}
+@media (min-width:820px){.hero{grid-template-columns:1.05fr 1fr;padding:28px;gap:32px;align-items:center}}
+.hero[data-state="armed"],.hero[data-state="night"]{background:var(--ok-soft);border-color:transparent}
+.hero[data-state="exit"],.hero[data-state="entry"]{background:var(--warn-soft);border-color:transparent}
+.hero[data-state="alarm"]{background:var(--alarm-bg);border-color:transparent;color:var(--on-crit);animation:alarm 1.1s ease-in-out infinite}
+@keyframes alarm{50%{background:var(--alarm-bg-2)}}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.09em;font-weight:700;color:var(--muted)}
+.hero-title{font-size:clamp(30px,6vw,44px);line-height:1.04;letter-spacing:-.025em;margin:6px 0 10px;font-weight:780}
+.hero[data-state="armed"] .hero-title,.hero[data-state="night"] .hero-title{color:var(--ok-ink)}
+.hero[data-state="exit"] .hero-title,.hero[data-state="entry"] .hero-title{color:var(--warn-ink)}
+.hero[data-state="alarm"] .eyebrow,.hero[data-state="alarm"] .hero-sub{color:inherit;opacity:.92}
+.hero-sub{color:var(--muted);max-width:46ch;margin:0 0 18px}
+.countdown{display:flex;align-items:baseline;gap:6px;margin:-4px 0 18px;color:var(--warn-ink)}
+.countdown b{font-size:56px;font-weight:800;line-height:1;letter-spacing:-.03em}
+.hero-actions{display:flex;gap:10px;flex-wrap:wrap}
+.hero[data-state="alarm"] .btn.primary{background:#FFFFFF;border-color:#FFFFFF;color:var(--alarm-bg)}
+
+.plan{margin:0;background:var(--plan-floor);border:1px solid var(--line);border-radius:14px;padding:12px 12px 10px;color:var(--ink)}
+.plan .iso{display:block;width:100%;height:auto}
+.plan .compass{width:17px;height:17px;flex:none}
+.sides{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.side-btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line-strong);background:var(--surface);border-radius:10px;padding:6px 11px;font-weight:620;font-size:13.5px;cursor:pointer}
+.side-btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.compass{width:17px;height:17px;flex:none}
+.compass .cf{fill:none;stroke:currentColor;stroke-width:1.2;opacity:.4}
+.compass .cm{fill:currentColor}
+.badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;font-size:11px;font-weight:800;background:var(--accent);color:var(--accent-ink)}
+.badge.hit{background:var(--crit);color:var(--on-crit);animation:bpulse 1.4s ease-in-out infinite}
+@keyframes bpulse{50%{transform:scale(1.14)}}
+.side-note{font-size:12.5px;color:var(--muted);margin-left:auto}
+.flip{perspective:1400px}
+.flip-in{position:relative;transform-style:preserve-3d;transition:transform .85s cubic-bezier(.4,0,.2,1)}
+.flip-in.flipped{transform:rotateY(180deg)}
+.face{backface-visibility:hidden;-webkit-backface-visibility:hidden}
+.face.b{position:absolute;inset:0;transform:rotateY(180deg)}
+.iso .face-l{fill:var(--wood-2)} .iso .face-r{fill:var(--wood-3)}
+.iso .roof-l{fill:var(--wood)} .iso .roof-r{fill:var(--wood-2)}
+.iso .edge{fill:none;stroke:var(--wood-line);stroke-width:1.1;stroke-linejoin:round}
+.iso .win{fill:var(--glass);stroke:var(--wood-line);stroke-width:1.1}
+.iso .shade{fill:var(--wood-line);opacity:.88;transition:transform .7s ease}
+.iso .gbar{fill:var(--warn);transition:transform 1.1s ease}
+.iso .itag{font-size:8.2px;font-weight:700;fill:var(--ink);paint-order:stroke;stroke:var(--surface);stroke-width:2.6;stroke-linejoin:round;opacity:.92;pointer-events:none}
+.hot.s-act .itag{fill:var(--accent)}
+.hot.s-hit .itag{fill:var(--crit-ink);opacity:1}
+.hot.hl .itag,.hot.flash .itag{fill:var(--accent)}
+.blades{animation:spin 1.1s linear infinite;animation-play-state:paused;transform-box:fill-box;transform-origin:center}
+.spinning .blades{animation-play-state:running}
+.hot{cursor:pointer}
+.hot .halo{fill:var(--line-strong);opacity:0;transition:opacity .25s;transform-box:fill-box;transform-origin:center}
+.hot .core{fill:var(--line-strong);stroke:var(--surface);stroke-width:1.4;transition:fill .25s}
+.hot.s-on .core{fill:var(--ok)} .hot.s-on .halo{fill:var(--ok);opacity:.2}
+.hot.s-act .core{fill:var(--accent)} .hot.s-act .halo{fill:var(--accent);opacity:.28}
+.hot.s-seen .core{fill:var(--accent)} .hot.s-seen .halo{fill:var(--accent);opacity:.25}
+.hot.s-hit .core{fill:var(--crit)}
+.hot.s-hit .halo{fill:var(--crit);opacity:.32;animation:ping 1s ease-out infinite}
+.hot.hl .halo{opacity:.5}
+.hot.flash .halo{animation:iflash .34s ease-in-out 4;opacity:.1}
+.hot.flash .core{animation:iflashcore .34s ease-in-out 4;transform-box:fill-box;transform-origin:center}
+@keyframes ping{from{transform:scale(.6);opacity:.55}to{transform:scale(1.6);opacity:0}}
+@keyframes iflash{0%,100%{opacity:.08;transform:scale(1)}50%{opacity:.85;transform:scale(1.6)}}
+@keyframes iflashcore{0%,100%{transform:scale(1)}50%{transform:scale(1.35)}}
+.iso .led{transition:fill .2s}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+/* section heads */
+.section-head{display:flex;align-items:baseline;gap:6px 12px;justify-content:space-between;flex-wrap:wrap;margin:30px 0 12px}
+.section-head h2{font-size:18px;margin:0;letter-spacing:-.01em}
+
+/* scenes */
+.scenes{display:grid;gap:10px;grid-template-columns:1fr}
+@media (min-width:640px){.scenes{grid-template-columns:repeat(3,1fr)}}
+.scene{text-align:left;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);cursor:pointer;display:grid;gap:3px}
+.scene:hover{border-color:var(--accent)}
+.scene:disabled{cursor:not-allowed}
+.scene-name{font-weight:700;font-size:15.5px}
+.scene-desc{font-size:13px;color:var(--muted)}
+
+/* climate */
+.climate{display:grid;gap:12px;grid-template-columns:1fr}
+@media (min-width:640px){.climate{grid-template-columns:repeat(3,1fr)}}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;display:grid;gap:10px;align-content:start}
+.tile-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tile-label{font-size:13px;font-weight:650;color:var(--muted)}
+.tile-value{font-size:42px;font-weight:760;letter-spacing:-.03em;line-height:1}
+.unit{font-size:16px;font-weight:600;color:var(--muted);margin-left:4px;letter-spacing:0}
+.pill{font-size:12px;font-weight:680;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--muted);white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok-ink)}
+.pill.warn{background:var(--warn-soft);color:var(--warn-ink)}
+.pill.crit{background:var(--alarm-bg);color:var(--on-crit)}
+.spark{position:relative;height:42px}
+.spark svg{width:100%;height:100%;display:block}
+.spark .ln{fill:none;stroke:var(--accent);stroke-width:1.75;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.spark .ar{fill:var(--accent);opacity:.12}
+.spark .gl{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke;stroke-dasharray:2 3}
+.spark .end{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--surface);transform:translate(-50%,-50%);left:100%}
+.tile-foot{font-size:12.5px;color:var(--muted)}
+
+/* devices */
+.devices{display:grid;gap:12px;grid-template-columns:1fr}
+@media (min-width:680px){.devices{grid-template-columns:repeat(2,1fr)}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.device{display:grid;gap:14px;align-content:start}
+.dev-head{display:flex;align-items:center;gap:12px}
+.dev-icon{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;background:var(--surface-2);color:var(--muted);flex:none;transition:background-color .3s,color .3s}
+.dev-icon.on{background:var(--accent-soft);color:var(--accent)}
+.dev-icon svg{width:22px;height:22px}
+.dev-icon.spin svg{animation:spin 1.1s linear infinite;transform-origin:50% 50%}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dev-head h3{margin:0;font-size:15.5px}
+.dev-state{margin:0;font-size:14px;font-weight:600}
+.dev-note{margin:0;font-size:13px;color:var(--muted)}
+.dev-note.warn{color:var(--warn-ink)}
+.dev-note.crit{color:var(--crit-ink);font-weight:600}
+
+.seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:3px;gap:2px}
+.seg input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.seg label{padding:8px 10px;border-radius:8px;text-align:center;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted);user-select:none}
+.seg label:hover{color:var(--ink)}
+.seg input:checked+label{background:var(--seg-active);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.seg input:focus-visible+label{outline:2px solid var(--accent);outline-offset:1px}
+.seg input:disabled+label{opacity:.45;cursor:not-allowed}
+
+.range-row{display:grid;grid-template-columns:auto 1fr 3.4em;align-items:center;gap:10px}
+.range-row label{font-size:13px;color:var(--muted);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--accent)}
+output{font-weight:680;text-align:right}
+
+.gate-hw{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.seg7{display:flex;gap:5px;background:var(--seg-bg);padding:10px 12px;border-radius:9px}
+.seg7 svg{width:20px;height:34px;display:block}
+.seg7 .s{fill:var(--seg-off)}
+.seg7 .s.on{fill:var(--seg-on)}
+.tlight{display:flex;flex-direction:column;gap:5px;background:var(--seg-bg);padding:6px;border-radius:9px}
+.tl{width:12px;height:12px;border-radius:50%;background:var(--tl-off);display:block;transition:background-color .2s}
+.tl.r.on{background:var(--tl-red);box-shadow:0 0 7px var(--tl-red)}
+.tl.y.on{background:var(--tl-yellow);box-shadow:0 0 7px var(--tl-yellow)}
+.tl.g.on{background:var(--tl-green);box-shadow:0 0 7px var(--tl-green)}
+.gate-dist{display:grid;gap:1px}
+.gate-dist b{font-size:22px;font-weight:720;letter-spacing:-.02em}
+
+.swatches{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.swatches input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.swatches label{width:30px;height:30px;border-radius:50%;cursor:pointer;border:1px solid rgba(0,0,0,.15);display:block}
+.swatches input:checked+label{outline:2px solid var(--ink);outline-offset:3px}
+.swatches input:focus-visible+label{outline:2px solid var(--accent);outline-offset:3px}
+.swatches input:disabled+label{opacity:.4;cursor:not-allowed}
+
+/* bottom row */
+.bottom{display:grid;gap:12px;margin-top:30px}
+@media (min-width:900px){.bottom{grid-template-columns:1.35fr 1fr;align-items:start}}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:6px}
+.card-head h2{font-size:16px;margin:0}
+.linkbtn{border:0;background:none;color:var(--accent);font-weight:600;cursor:pointer;padding:4px 0}
+
+.log{list-style:none;margin:0;padding:0}
+.log-item{display:grid;grid-template-columns:6em 1fr;gap:2px 10px;padding:10px 0;border-top:1px solid var(--line);align-items:baseline}
+.log-item:first-child{border-top:0}
+.log-item time{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;padding-left:13px}
+.lv-warn time,.lv-crit time{padding-left:0}
+.log-body{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px}
+.tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.lv-warn .txt{color:var(--warn-ink)}
+.lv-crit .txt{color:var(--crit-ink);font-weight:650}
+.lv-warn time::before,.lv-crit time::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.lv-warn time::before{background:var(--warn)}
+.lv-crit time::before{background:var(--crit)}
+.empty{color:var(--muted);padding:16px 0;margin:0}
+
+.demo{border:1.5px dashed var(--line-strong);border-radius:var(--radius);padding:16px}
+.demo h2{font-size:15px;margin:0 0 4px}
+.demo p{margin:0}
+.demo-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.demo-btns button{font-size:13px;padding:7px 12px;border-radius:999px;border:1px solid var(--line-strong);background:var(--surface);cursor:pointer}
+.demo-btns button:hover{border-color:var(--ink)}
+.demo-btns button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.demo-btns button:disabled{opacity:.45;cursor:not-allowed}
+
+/* pages */
+.page-head{margin-bottom:18px}
+.page-head h1{font-size:28px;margin:0 0 4px;letter-spacing:-.02em}
+.page-head p{margin:0}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.filters input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.filters label{padding:6px 12px;border-radius:999px;border:1px solid var(--line-strong);font-size:13.5px;font-weight:600;cursor:pointer;color:var(--muted);background:var(--surface)}
+.filters input:checked+label{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.filters input:focus-visible+label{outline:2px solid var(--accent);outline-offset:2px}
+
+.settings{display:grid;gap:16px}
+@media (min-width:900px){.settings{grid-template-columns:1fr 1fr;align-items:start}}
+.card>h2{font-size:16px;margin:0 0 4px}
+.lead{margin:0 0 16px;color:var(--muted);font-size:13.5px;max-width:60ch}
+.fields{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:start}
+/* Підписи бувають на один і на два рядки. Без спільних рядків інпут під довшим
+   підписом з'їжджає нижче за сусідні, тому поля беруть рядки з батьківської сітки. */
+.field{display:grid;grid-template-rows:subgrid;grid-row:span 3;gap:6px;align-content:start}
+@supports not (grid-template-rows:subgrid){
+  .field{grid-row:auto}
+  .field>label{min-height:2.5em;display:flex;align-items:flex-end}
+}
+.field>label,.group-title{font-size:13px;font-weight:650}
+.hint{font-size:12px;color:var(--muted)}
+.input-unit{display:flex;align-items:center;gap:8px}
+.input-unit span{color:var(--muted);font-size:13px;white-space:nowrap}
+input[type=number],input[type=password],input[type=text]{font:inherit;padding:9px 11px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink);width:100%;min-width:0}
+.checks{display:grid;gap:9px}
+.check{display:flex;gap:10px;align-items:center;font-size:14px;cursor:pointer}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent);margin:0;flex:none}
+.split{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:16px}
+.form-foot{display:flex;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}
+.form-msg{margin:0;font-size:13px;min-height:1.2em}
+.form-msg.err{color:var(--crit-ink)}
+.form-msg.ok{color:var(--ok-ink)}
+.divider{border:0;border-top:1px solid var(--line);margin:20px 0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;margin:0 0 16px}
+.kv dt{color:var(--muted);font-size:13.5px}
+.kv dd{margin:0;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap}
+
+.about{max-width:70ch}
+.about h2{font-size:18px;margin:28px 0 8px}
+.about p{margin:0 0 12px}
+.about ul{margin:0;padding-left:1.2em;display:grid;gap:6px}
+.ports{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0}
+.ports dt{font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted)}
+.ports dd{margin:0}
+
+/* обладнання */
+.chip.warn{background:var(--warn-soft);color:var(--warn-ink);border-color:transparent}
+.hw-top{display:grid;gap:12px}
+@media (min-width:900px){.hw-top{grid-template-columns:1fr 1fr;align-items:stretch}}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 16px}
+@media (min-width:560px){.stats{grid-template-columns:repeat(4,1fr)}}
+@media (min-width:900px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat b{display:block;font-size:30px;font-weight:760;letter-spacing:-.02em;line-height:1.1;font-variant-numeric:tabular-nums}
+.stat span{font-size:13px;color:var(--muted)}
+.stat.ok b{color:var(--ok-ink)} .stat.warn b{color:var(--warn-ink)} .stat.err b{color:var(--crit-ink)}
+.service{display:grid;gap:12px;align-content:space-between;transition:background-color .3s}
+.service[data-on="true"]{background:var(--warn-soft);border-color:transparent}
+.service h2{font-size:16px;margin:0 0 4px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.service .state{font-size:13px;font-weight:650;color:var(--muted)}
+.service[data-on="true"] .state{color:var(--warn-ink)}
+.service .lead{margin:0}
+.hw-tools{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin:22px 0 4px}
+.hw-tools .filters{margin:0}
+.autocheck{margin-top:12px}
+.ac-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px;font-size:14px}
+.ac-list li{display:grid;grid-template-columns:1.2em 1fr;gap:8px}
+.ac-list li::before{font-weight:800}
+.ac-list li.ok::before{content:"✓";color:var(--ok)}
+.ac-list li.err::before{content:"✕";color:var(--crit)}
+.ac-list li.wait::before{content:"…";color:var(--muted)}
+.ac-sum{margin:12px 0 0;font-size:14px;font-weight:600}
+.hw-group{margin-top:24px}
+.hw-group-head{display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:8px}
+.hw-group-head h2{font-size:16px;margin:0}
+.hw-group-head a{margin-left:auto;font-size:13.5px;font-weight:600}
+.hw-items{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.comp+.comp{border-top:1px solid var(--line)}
+.comp>summary{list-style:none;display:grid;grid-template-columns:auto 1fr auto auto;grid-template-areas:"dot main pill chev" "dot live live live";align-items:center;gap:4px 12px;padding:12px 16px;cursor:pointer}
+@media (min-width:700px){.comp>summary{grid-template-columns:auto minmax(0,1fr) auto auto auto;grid-template-areas:"dot main live pill chev"}}
+.comp>summary::-webkit-details-marker{display:none}
+.comp>summary:hover{background:var(--surface-2)}
+.comp-dot{grid-area:dot;width:10px;height:10px;border-radius:50%;background:var(--line-strong);align-self:start;margin-top:6px}
+@media (min-width:700px){.comp-dot{align-self:center;margin-top:0}}
+.comp-dot.ok{background:var(--ok)} .comp-dot.warn{background:var(--warn)} .comp-dot.err{background:var(--crit)}
+.comp-main{grid-area:main;min-width:0}
+.comp-name{font-weight:650;display:block}
+.comp-model{font-size:12.5px;color:var(--muted);display:block}
+.comp-live{grid-area:live;font-size:13.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+@media (min-width:700px){.comp-live{text-align:right;white-space:nowrap}}
+.comp .pill{grid-area:pill}
+.pill.err{background:var(--crit-soft);color:var(--crit-ink)}
+.chev{grid-area:chev;width:18px;height:18px;color:var(--muted);transition:transform .2s}
+.comp[open] .chev{transform:rotate(180deg)}
+.comp-body{display:grid;gap:22px;padding:6px 16px 20px}
+@media (min-width:900px){.comp-body{grid-template-columns:1fr 1fr;gap:32px;padding-left:38px}}
+.blk h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 10px;font-weight:750}
+.blk+.blk{margin-top:22px}
+.blk p{margin:0 0 10px}
+.test-row{display:flex;flex-wrap:wrap;gap:8px}
+.btn.sm{min-height:34px;padding:0 12px;font-size:13.5px;border-radius:8px}
+.test-res{margin:10px 0 0;font-size:13.5px;min-height:1.2em}
+.test-res.ok{color:var(--ok-ink)} .test-res.warn,.test-res.wait{color:var(--warn-ink)} .test-res.err{color:var(--crit-ink)} .test-res.info{color:var(--ink)}
+.svc-hint{font-size:12.5px;color:var(--warn-ink);margin:8px 0 0}
+.tbl{overflow-x:auto}
+.pins{width:100%;border-collapse:collapse;font-size:13.5px}
+.pins th{text-align:left;font-size:12px;color:var(--muted);font-weight:650;padding:0 10px 6px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.pins td{padding:7px 10px 7px 0;border-bottom:1px solid var(--line)}
+.pins code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;background:var(--surface-2);padding:1px 6px;border-radius:5px;white-space:nowrap}
+.wiring{font-size:13.5px;color:var(--muted);margin:10px 0 0}
+.specs{display:grid;grid-template-columns:minmax(7.5em,auto) 1fr;gap:6px 14px;margin:0;font-size:13.5px}
+.specs dt{color:var(--muted)}
+.specs dd{margin:0}
+.links{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:13.5px;font-weight:600}
+.cal .fields{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+.field-wide{grid-column:1/-1}
+.range-row.bare{grid-template-columns:1fr 3.4em}
+select{font:inherit;padding:9px 11px;border-radius:9px;border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink);width:100%}
+.cal-acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.kp-grid{display:grid;grid-template-columns:repeat(4,44px);gap:6px;margin-top:4px}
+.kp{height:40px;border-radius:8px;border:1px solid var(--line-strong);background:var(--surface-2);font-weight:700;cursor:pointer;transition:background-color .15s}
+.kp.done{background:var(--ok-soft);border-color:var(--ok);color:var(--ok-ink)}
+.kp.hit{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+
+/* footer */
+.foot{margin-top:40px;border-top:1px solid var(--line);padding-block:20px 28px;font-size:13.5px;color:var(--muted)}
+.foot p{margin:0 0 4px;max-width:80ch}
+.foot a{color:var(--ink)}
+
+/* tab bar */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:20;display:grid;grid-template-columns:repeat(4,1fr);background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (min-width:900px){.tabbar{display:none}}
+.tabbar button{display:grid;justify-items:center;gap:3px;padding:9px 4px 10px;font-size:11.5px;font-weight:600;color:var(--muted);background:none;border:0;cursor:pointer}
+.tabbar button[aria-current="page"]{color:var(--accent)}
+.tabbar svg{width:22px;height:22px}
+
+/* dialogs */
+dialog{border:0;border-radius:18px;padding:0;background:var(--surface);color:var(--ink);width:min(380px,calc(100vw - 32px));box-shadow:0 24px 64px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(8,12,10,.55)}
+.dlg{padding:20px;display:grid;gap:12px}
+.dlg h2{margin:0;font-size:18px;text-align:center}
+.dlg>p{margin:0;text-align:center}
+.pin-dots{display:flex;gap:10px;justify-content:center;padding:6px 0}
+.pin-dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--line-strong)}
+.pin-dots i.f{background:var(--ink);border-color:var(--ink)}
+.pin-msg{min-height:1.3em;text-align:center;color:var(--crit-ink);font-size:13.5px;margin:0}
+.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.key{height:56px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);font-size:22px;font-weight:650;cursor:pointer}
+.key:hover{border-color:var(--line-strong)}
+.key:active{transform:scale(.97)}
+.key.fn{font-size:24px;color:var(--muted)}
+.dlg-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.shake{animation:shake .35s}
+@keyframes shake{20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
+.nets{display:grid;gap:6px}
+.net{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer}
+.net:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.net input{accent-color:var(--accent);margin:0}
+.net-name{font-weight:600;margin-right:auto}
+.bars{display:inline-flex;align-items:flex-end;gap:2px;height:14px}
+.bars i{width:3px;background:var(--line-strong);border-radius:1px}
+.bars i.on{background:var(--ink)}
+
+#toast{position:fixed;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;font-weight:550;z-index:60;width:max-content;max-width:calc(100vw - 32px);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+@media (min-width:900px){#toast{bottom:24px}}
+
+
+/* дзеркало екрана Nanit: ST7735 160×128, координати й кольори з display.cpp */
+.mirror{display:grid;gap:16px;align-items:start}
+@media (min-width:640px){.mirror{grid-template-columns:auto 1fr}}
+.screen{--k:2px;position:relative;width:calc(160*var(--k));height:calc(128*var(--k));background:#000;border-radius:4px;overflow:hidden;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-shadow:0 0 0 6px #1a1a1a,0 0 0 7px var(--line-strong);flex:none}
+@media (max-width:420px){.screen{--k:1.7px}}
+.screen .rule{position:absolute;left:0;width:100%;height:1px;background:#292829}
+.screen .secbar{position:absolute;left:0;width:100%;top:calc(15*var(--k));height:calc(26*var(--k));transition:background-color .3s}
+.screen .w{position:absolute;left:calc(var(--x)*var(--k));top:calc(var(--y)*var(--k));white-space:pre;color:#FFF}
+.screen .s1{font-size:calc(8*var(--k));line-height:calc(8*var(--k));letter-spacing:calc(1.2*var(--k))}
+.screen .s2{font-size:calc(16*var(--k));line-height:calc(16*var(--k));letter-spacing:calc(2.4*var(--k));font-weight:600}
+.mirror-rows{display:grid;gap:6px;font-size:13px;align-content:start}
+.mirror-rows div{display:grid;grid-template-columns:8.5em 1fr;gap:3px 12px}
+.mirror-rows dt{color:var(--muted);font-size:12.5px}
+.mirror-rows dd{margin:0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+
+<body>
+
+<div class="shell">
+  <header class="topbar">
+    <div class="wrap topbar-in">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></svg></span>
+        <div>
+          <div class="brand-name">Zhuk Home</div>
+          <div class="brand-sub">zhukhome.local</div>
+        </div>
+      </div>
+      <nav class="topnav" aria-label="Розділи">
+        <button type="button" data-view="home" aria-current="page">Огляд</button>
+        <button type="button" data-view="log">Журнал</button>
+        <button type="button" data-view="hw">Обладнання</button>
+        <button type="button" data-view="settings">Налаштування</button>
+        <button type="button" data-view="about">Про проєкт</button>
+      </nav>
+      <div class="status">
+        <span class="chip warn num" id="chip-svc" hidden title="Сервісний режим: автоматика на паузі">Сервіс <span id="chip-svc-t">10:00</span></span>
+        <span class="chip" id="chip-link" data-state="on" title="Зв’язок ESP з контролером Nanit"><i class="dot"></i><span id="chip-link-text">Nanit</span></span>
+        <span class="chip hide-sm num" id="chip-wifi" title="Сила сигналу Wi-Fi">Wi-Fi −58 дБм</span>
+        <span class="chip hide-sm num" id="chip-batt" title="Заряд батареї Nanit">Батарея 87%</span>
+        <span class="chip num" id="chip-clock">--:--</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap"><div id="banners"></div></div>
+
+  <main class="wrap">
+    <!-- ОГЛЯД -->
+    <section class="view" data-panel="home" aria-label="Огляд">
+      <fieldset class="controls" id="controls">
+        <legend class="sr">Керування будинком</legend>
+
+        <div class="hero" id="hero" data-state="disarmed">
+          <div>
+            <div class="eyebrow">Охорона</div>
+            <h1 class="hero-title" id="sec-title">Знято з охорони</h1>
+            <p class="hero-sub" id="sec-sub"></p>
+            <div class="countdown num" id="sec-count" hidden><b id="sec-count-n">30</b><span>с</span></div>
+            <div class="hero-actions" id="sec-actions"></div>
+          </div>
+          <figure class="plan" aria-label="Схема макета з двома боками будиночка">
+            <div class="sides">
+              <button type="button" class="side-btn" data-side="a" aria-pressed="true">
+                <svg class="compass" viewBox="0 0 20 20" aria-hidden="true"><rect class="cf" x="3.5" y="3.5" width="13" height="13" rx="2"/><path class="cm" d="M3.5 12.5h13v4h-13z" opacity=".9"/></svg>
+                Двір
+              </button>
+              <button type="button" class="side-btn" data-side="b" aria-pressed="false">
+                <svg class="compass" viewBox="0 0 20 20" aria-hidden="true"><rect class="cf" x="3.5" y="3.5" width="13" height="13" rx="2"/><path class="cm" d="M3.5 3.5h13v4h-13z" opacity=".9"/></svg>
+                Вхід
+                <span class="badge" id="badge" hidden></span>
+              </button>
+              <span class="side-note" id="side-note">паркінг і вікно</span>
+            </div>
+            <div class="flip">
+              <div class="flip-in" id="flip">
+                <div class="face a">
+                  <svg class="iso" viewBox="0 0 420 330" role="img" aria-labelledby="ta">
+                    <title id="ta">Двір: паркінг зі шлагбаумом, вікно зі шторкою й вентиляцією, датчик газу на даху</title>
+                    <defs><clipPath id="winclip"><path d="M256 206 L300 228 L300 244 L256 222 Z"/></clipPath></defs>
+                    <ellipse cx="200" cy="296" rx="150" ry="20" fill="var(--wood-line)" opacity=".12"/>
+                    <path class="face-l" d="M200 205 L50 130 L50 225 L200 300 Z"/>
+                    <path class="face-r" d="M200 205 L350 130 L350 225 L200 300 Z"/>
+                    <path class="roof-r" d="M350 130 L200 55 L125 42 L275 117 Z"/>
+                    <path class="roof-l" d="M200 205 L50 130 L125 42 L275 117 Z"/>
+                    <path class="edge" d="M200 205 L50 130 L50 225 L200 300 Z M200 205 L350 130 L350 225 L200 300 Z M200 205 L125 42 L275 117 Z M350 130 L275 117 M50 130 L125 42 M200 205 V300"/>
+                    <g class="hot" data-zone="tl" tabindex="0" role="button">
+                      <rect x="66" y="156" width="12" height="28" rx="3" fill="var(--ink)" opacity=".8"/>
+                      <circle class="led" id="i-tr" cx="72" cy="163" r="3" fill="var(--tl-off)"/>
+                      <circle class="led" id="i-ty" cx="72" cy="170" r="3" fill="var(--tl-off)"/>
+                      <circle class="led" id="i-tg" cx="72" cy="177" r="3" fill="var(--tl-off)"/>
+                      <circle class="halo" cx="72" cy="170" r="13"/><circle class="core" cx="72" cy="170" r="4.5"/>
+                      <text class="itag" x="72" y="151" text-anchor="middle">Світлофор</text>
+                    </g>
+                    <g class="hot" data-zone="gate" tabindex="0" role="button">
+                      <circle cx="110" cy="200" r="3.5" fill="var(--ink)"/>
+                      <rect class="gbar" id="i-bar" x="110" y="197" width="58" height="4" rx="2" transform-origin="110px 199px"/>
+                      <circle class="halo" cx="110" cy="200" r="13"/><circle class="core" cx="110" cy="200" r="5"/>
+                      <text class="itag" x="132" y="187" text-anchor="middle">Шлагбаум</text>
+                    </g>
+                    <g class="hot" data-zone="car" tabindex="0" role="button">
+                      <circle class="halo" cx="100" cy="232" r="12"/><circle class="core" cx="100" cy="232" r="5"/>
+                      <text class="itag" x="97" y="249" text-anchor="middle">Далекомір</text>
+                    </g>
+                    <g class="hot" data-zone="seg" tabindex="0" role="button">
+                      <rect x="146" y="224" width="26" height="11" rx="2" fill="var(--ink)" opacity=".75"/>
+                      <text x="159" y="233" text-anchor="middle" font-size="8" font-weight="800" fill="var(--tl-red)" id="i-seg">----</text>
+                      <circle class="halo" cx="159" cy="229" r="12"/><circle class="core" cx="159" cy="229" r="4.5"/>
+                      <text class="itag" x="161" y="251" text-anchor="middle">Дисплей</text>
+                    </g>
+                    <g class="hot" data-zone="fan" tabindex="0" role="button" id="i-fan">
+                      <circle cx="246" cy="184" r="14" fill="var(--ink)" opacity=".1"/>
+                      <g class="blades">
+                        <path d="M246 184 q-2-10 4-13 t6 7 t-10 6Z" fill="var(--wood-line)"/>
+                        <path d="M246 184 q-2-10 4-13 t6 7 t-10 6Z" fill="var(--wood-line)" transform="rotate(120 246 184)"/>
+                        <path d="M246 184 q-2-10 4-13 t6 7 t-10 6Z" fill="var(--wood-line)" transform="rotate(240 246 184)"/>
+                      </g>
+                      <circle class="halo" cx="246" cy="184" r="13"/><circle class="core" cx="246" cy="184" r="5"/>
+                      <text class="itag" x="246" y="200" text-anchor="middle">Вентиляція</text>
+                    </g>
+                    <g class="hot" data-zone="window" tabindex="0" role="button">
+                      <path class="win" d="M256 206 L300 228 L300 244 L256 222 Z"/>
+                      <g clip-path="url(#winclip)"><path class="shade" id="i-shade" d="M256 206 L300 228 L300 244 L256 222 Z"/></g>
+                      <circle class="halo" cx="278" cy="225" r="13"/><circle class="core" cx="278" cy="225" r="5"/>
+                      <text class="itag" x="278" y="258" text-anchor="middle">Вікно</text>
+                    </g>
+                    <g class="hot" data-zone="co" tabindex="0" role="button">
+                      <circle class="halo" cx="150" cy="128" r="14"/><circle class="core" cx="150" cy="128" r="6"/>
+                      <text class="itag" x="150" y="144" text-anchor="middle">Чадний газ</text>
+                    </g>
+                    <g class="hot" data-zone="dht" tabindex="0" role="button">
+                      <circle class="halo" cx="256" cy="96" r="12"/><circle class="core" cx="256" cy="96" r="5"/>
+                      <text class="itag" x="268" y="99" text-anchor="start">Клімат</text>
+                    </g>
+                    <g class="hot" data-zone="ldr" tabindex="0" role="button">
+                      <circle class="halo" cx="226" cy="81" r="12"/><circle class="core" cx="226" cy="81" r="5"/>
+                      <text class="itag" x="238" y="84" text-anchor="start">Світло</text>
+                    </g>
+                    <g class="hot" data-zone="sound" tabindex="0" role="button">
+                      <circle class="halo" cx="196" cy="66" r="12"/><circle class="core" cx="196" cy="66" r="5"/>
+                      <text class="itag" x="208" y="69" text-anchor="start">Звук</text>
+                    </g>
+                  </svg>
+                </div>
+                <div class="face b">
+                  <svg class="iso" viewBox="0 0 420 330" role="img" aria-labelledby="tb">
+                    <title id="tb">Вхід: клавіатура, датчик руху, зумер і підсвітка, контролер Nanit з екраном</title>
+                    <ellipse cx="200" cy="296" rx="150" ry="20" fill="var(--wood-line)" opacity=".12"/>
+                    <path class="face-l" d="M200 205 L50 130 L50 225 L200 300 Z"/>
+                    <path class="face-r" d="M200 205 L350 130 L350 225 L200 300 Z"/>
+                    <path class="roof-r" d="M350 130 L200 55 L125 42 L275 117 Z"/>
+                    <path class="roof-l" d="M200 205 L50 130 L125 42 L275 117 Z"/>
+                    <path class="edge" d="M200 205 L50 130 L50 225 L200 300 Z M200 205 L350 130 L350 225 L200 300 Z M200 205 L125 42 L275 117 Z M350 130 L275 117 M50 130 L125 42 M200 205 V300"/>
+                    <g class="hot" data-zone="light" tabindex="0" role="button">
+                      <circle cx="106" cy="180" r="9" fill="var(--accent)" opacity=".25" id="i-glow"/>
+                      <circle class="halo" cx="106" cy="180" r="13"/><circle class="core" cx="106" cy="180" r="5"/>
+                      <text class="itag" x="106" y="164" text-anchor="middle">Світло</text>
+                    </g>
+                    <g class="hot" data-zone="pir" tabindex="0" role="button">
+                      <circle class="halo" cx="154" cy="206" r="13"/><circle class="core" cx="154" cy="206" r="5.5"/>
+                      <text class="itag" x="154" y="191" text-anchor="middle">Рух</text>
+                    </g>
+                    <g class="hot" data-zone="kbd" tabindex="0" role="button">
+                      <path d="M86 198 L122 216 L122 234 L86 216 Z" fill="var(--ink)" opacity=".5"/>
+                      <circle class="halo" cx="104" cy="216" r="13"/><circle class="core" cx="104" cy="216" r="5"/>
+                      <text class="itag" x="104" y="248" text-anchor="middle">Клавіатура</text>
+                    </g>
+                    <g class="hot" data-zone="buz" tabindex="0" role="button">
+                      <circle class="halo" cx="158" cy="246" r="12"/><circle class="core" cx="158" cy="246" r="5"/>
+                      <text class="itag" x="158" y="261" text-anchor="middle">Зумер</text>
+                    </g>
+                    <g class="hot" data-zone="scr" tabindex="0" role="button">
+                      <path d="M248 204 L292 226 L292 246 L248 224 Z" fill="var(--ink)" opacity=".82"/>
+                      <path d="M253 210 L287 227 L287 241 L253 224 Z" fill="var(--accent)" opacity=".5"/>
+                      <circle class="halo" cx="270" cy="224" r="14"/><circle class="core" cx="270" cy="224" r="5"/>
+                      <text class="itag" x="270" y="258" text-anchor="middle">Екран Nanit</text>
+                    </g>
+                    <g class="hot" data-zone="sound" tabindex="0" role="button">
+                      <circle class="halo" cx="136" cy="104" r="12"/><circle class="core" cx="136" cy="104" r="5"/>
+                      <text class="itag" x="148" y="107" text-anchor="start">Звук</text>
+                    </g>
+                    <g class="hot" data-zone="ldr" tabindex="0" role="button">
+                      <circle class="halo" cx="166" cy="119" r="12"/><circle class="core" cx="166" cy="119" r="5"/>
+                      <text class="itag" x="178" y="122" text-anchor="start">Світло</text>
+                    </g>
+                    <g class="hot" data-zone="dht" tabindex="0" role="button">
+                      <circle class="halo" cx="196" cy="134" r="12"/><circle class="core" cx="196" cy="134" r="5"/>
+                      <text class="itag" x="208" y="137" text-anchor="start">Клімат</text>
+                    </g>
+                    <g class="hot" data-zone="co" tabindex="0" role="button">
+                      <circle class="halo" cx="262" cy="100" r="12"/><circle class="core" cx="262" cy="100" r="5"/>
+                      <text class="itag" x="274" y="103" text-anchor="start">Чадний газ</text>
+                    </g>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <figcaption class="legend">
+              <span><i style="background:var(--ok)"></i>Контролюється</span>
+              <span><i style="background:var(--line-strong)"></i>Не контролюється</span>
+              <span><i style="background:var(--accent)"></i>Активність</span>
+              <span><i style="background:var(--crit)"></i>Спрацював</span>
+            </figcaption>
+          </figure>
+        </div>
+
+        <div class="section-head"><h2>Сцени</h2><span class="small muted">Кілька дій однією кнопкою</span></div>
+        <div class="scenes">
+          <button type="button" class="scene" data-scene="away"><span class="scene-name">Я пішов</span><span class="scene-desc">Охорона, штора зачинена, світло вимкнене</span></button>
+          <button type="button" class="scene" data-scene="home"><span class="scene-name">Я вдома</span><span class="scene-desc">Зняти охорону, світло й штора в режимі «Авто»</span></button>
+          <button type="button" class="scene" data-scene="night"><span class="scene-name">Ніч</span><span class="scene-desc">Нічна охорона, штора зачинена, світло вимкнене</span></button>
+        </div>
+
+        <div class="section-head"><h2>Клімат</h2><span class="small muted">DHT11 і MQ-7 · оновлення кожні 2 с</span></div>
+        <div class="climate">
+          <article class="tile">
+            <div class="tile-top"><span class="tile-label">Температура</span><span class="pill" id="temp-pill">—</span></div>
+            <div class="tile-value num"><span id="temp-val">—</span><span class="unit">°C</span></div>
+            <div class="spark" id="temp-spark"></div>
+            <div class="tile-foot num" id="temp-range"></div>
+          </article>
+          <article class="tile">
+            <div class="tile-top"><span class="tile-label">Вологість</span><span class="pill" id="hum-pill">—</span></div>
+            <div class="tile-value num"><span id="hum-val">—</span><span class="unit">%</span></div>
+            <div class="spark" id="hum-spark"></div>
+            <div class="tile-foot num" id="hum-range"></div>
+          </article>
+          <article class="tile">
+            <div class="tile-top"><span class="tile-label">Чадний газ (CO)</span><span class="pill" id="co-pill">—</span></div>
+            <div class="tile-value num"><span id="co-val">—</span><span class="unit">/ 100</span></div>
+            <div class="spark" id="co-spark"></div>
+            <div class="tile-foot num" id="co-range"></div>
+          </article>
+        </div>
+
+        <div class="section-head"><h2>Пристрої</h2></div>
+        <div class="devices">
+          <article class="card device">
+            <div class="dev-head">
+              <span class="dev-icon" id="fan-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><circle cx="12" cy="12" r="1.8"/><path d="M12 10.2C10.9 6.6 12.4 3.6 15 3.9c2.3.3 2.3 3.6-3 6.3Z"/><path transform="rotate(120 12 12)" d="M12 10.2C10.9 6.6 12.4 3.6 15 3.9c2.3.3 2.3 3.6-3 6.3Z"/><path transform="rotate(240 12 12)" d="M12 10.2C10.9 6.6 12.4 3.6 15 3.9c2.3.3 2.3 3.6-3 6.3Z"/></svg></span>
+              <div><h3>Вентиляція</h3><p class="dev-state" id="fan-state">—</p></div>
+            </div>
+            <p class="dev-note" id="fan-note"></p>
+            <div class="seg" role="radiogroup" aria-label="Режим вентиляції">
+              <input type="radio" name="fan-mode" id="fan-auto" value="auto"><label for="fan-auto">Авто</label>
+              <input type="radio" name="fan-mode" id="fan-on" value="on"><label for="fan-on">Увімк.</label>
+              <input type="radio" name="fan-mode" id="fan-off" value="off"><label for="fan-off">Вимк.</label>
+            </div>
+          </article>
+
+          <article class="card device">
+            <div class="dev-head">
+              <span class="dev-icon" id="win-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="4" y="3.5" width="16" height="17" rx="1.5"/><path d="M12 3.5v17M4 12h16"/></svg></span>
+              <div><h3>Штора вікна</h3><p class="dev-state" id="win-state">—</p></div>
+            </div>
+            <p class="dev-note" id="win-note"></p>
+            <div class="seg" role="radiogroup" aria-label="Режим штори">
+              <input type="radio" name="win-mode" id="win-auto" value="auto"><label for="win-auto">Авто</label>
+              <input type="radio" name="win-mode" id="win-manual" value="manual"><label for="win-manual">Вручну</label>
+            </div>
+            <div class="range-row">
+              <label for="win-range">Відкрити на</label>
+              <input type="range" id="win-range" min="0" max="100" step="10" value="100">
+              <output id="win-out" for="win-range" class="num">100%</output>
+            </div>
+          </article>
+
+          <article class="card device">
+            <div class="dev-head">
+              <span class="dev-icon" id="gate-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V7M3 21h4"/><rect x="5" y="8.5" width="16" height="3.2" rx="1.6"/><path d="M10 8.5 8.3 11.7M14.5 8.5l-1.7 3.2M19 8.5l-1.7 3.2"/></svg></span>
+              <div><h3>Паркінг</h3><p class="dev-state" id="gate-state">—</p></div>
+            </div>
+            <div class="gate-hw">
+              <div class="seg7" id="seg7" role="img" aria-label="Дисплей паркінгу"></div>
+              <div class="tlight" aria-hidden="true"><i class="tl r" id="tl-r"></i><i class="tl y" id="tl-y"></i><i class="tl g" id="tl-g"></i></div>
+              <div class="gate-dist"><span class="small muted">Далекомір</span><b class="num" id="gate-dist">—</b></div>
+            </div>
+            <p class="dev-note" id="gate-note"></p>
+            <div class="seg" role="radiogroup" aria-label="Режим шлагбаума">
+              <input type="radio" name="gate-mode" id="gate-auto" value="auto"><label for="gate-auto">Авто</label>
+              <input type="radio" name="gate-mode" id="gate-open" value="open"><label for="gate-open">Відкрити</label>
+              <input type="radio" name="gate-mode" id="gate-close" value="close"><label for="gate-close">Зачинити</label>
+            </div>
+          </article>
+
+          <article class="card device">
+            <div class="dev-head">
+              <span class="dev-icon" id="light-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3Z"/></svg></span>
+              <div><h3>Світло</h3><p class="dev-state" id="light-state">—</p></div>
+            </div>
+            <p class="dev-note" id="light-note"></p>
+            <div class="seg" role="radiogroup" aria-label="Режим світла">
+              <input type="radio" name="light-mode" id="light-auto" value="auto"><label for="light-auto">Авто</label>
+              <input type="radio" name="light-mode" id="light-on" value="on"><label for="light-on">Увімк.</label>
+              <input type="radio" name="light-mode" id="light-off" value="off"><label for="light-off">Вимк.</label>
+            </div>
+            <div class="swatches" role="radiogroup" aria-label="Колір світла" id="swatches"></div>
+            <div class="range-row">
+              <label for="light-range">Яскравість</label>
+              <input type="range" id="light-range" min="10" max="100" step="10" value="70">
+              <output id="light-out" for="light-range" class="num">70%</output>
+            </div>
+          </article>
+        </div>
+      </fieldset>
+
+      <div class="section-head"><h2>Екран Nanit</h2><span class="small muted">Те саме, що світиться на дисплеї макета</span></div>
+      <article class="card">
+        <div class="mirror">
+          <div class="screen" id="screen" role="img" aria-label="Екран Nanit">
+            <div class="rule" style="top:calc(13*var(--k))"></div>
+            <div class="secbar" id="sc-bar"></div>
+            <div class="rule" style="top:calc(85*var(--k))"></div>
+            <div class="rule" style="top:calc(112*var(--k))"></div>
+            <span class="w s1" id="sc-clock"   style="--x:2;--y:3"></span>
+            <span class="w s1" id="sc-status"  style="--x:74;--y:3"></span>
+            <span class="w s2" id="sc-sec"     style="--x:8;--y:20"></span>
+            <span class="w s2" id="sc-climate" style="--x:8;--y:46"></span>
+            <span class="w s2" id="sc-co"      style="--x:8;--y:66"></span>
+            <span class="w s1" id="sc-gate"    style="--x:4;--y:90"></span>
+            <span class="w s1" id="sc-dev"     style="--x:4;--y:101"></span>
+            <span class="w s1" id="sc-bottom"  style="--x:4;--y:117"></span>
+          </div>
+          <div>
+            <p class="small muted" style="margin:0 0 10px">ST7735, 160×128 пікселів. Написи англійською: шрифт дисплея не має кирилиці. Нижній рядок показує введення коду, сервісний режим, тривогу CO або адресу.</p>
+            <dl class="mirror-rows" id="sc-rows"></dl>
+          </div>
+        </div>
+      </article>
+
+
+      <div class="bottom">
+        <article class="card">
+          <div class="card-head"><h2>Останні події</h2><button type="button" class="linkbtn" data-view="log">Увесь журнал →</button></div>
+          <ol class="log" id="log-recent"></ol>
+        </article>
+        <aside class="demo" aria-labelledby="demo-title">
+          <h2 id="demo-title">Імітація датчиків</h2>
+          <p class="small muted">Цей блок є лише в прототипі. На макеті ці події створюють справжні датчики. Демо-код охорони — 1234.</p>
+          <div class="demo-btns" id="demo">
+            <button type="button" data-sim="pir">Рух у кімнаті</button>
+            <button type="button" data-sim="sound">Шум</button>
+            <button type="button" data-sim="window">Хтось біля вікна</button>
+            <button type="button" data-sim="light" id="sim-light" aria-pressed="false">Стемніло</button>
+            <button type="button" data-sim="car" id="sim-car" aria-pressed="false">Під’їхала машина</button>
+            <button type="button" data-sim="echo" id="sim-echo" aria-pressed="false">Далекомір без відлуння</button>
+            <button type="button" data-sim="co" id="sim-co" aria-pressed="false">Підняти рівень CO</button>
+            <button type="button" data-sim="link" id="sim-link" aria-pressed="false">Обірвати зв’язок з Nanit</button>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ЖУРНАЛ -->
+    <section class="view" data-panel="log" aria-label="Журнал" hidden>
+      <div class="page-head">
+        <h1>Журнал подій</h1>
+        <p class="muted">ESP зберігає останні 200 подій, навіть якщо сторінку закрито.</p>
+      </div>
+      <div class="filters" role="radiogroup" aria-label="Фільтр подій">
+        <input type="radio" name="lf" id="lf-all" value="all" checked><label for="lf-all">Усі</label>
+        <input type="radio" name="lf" id="lf-security" value="security"><label for="lf-security">Охорона</label>
+        <input type="radio" name="lf" id="lf-climate" value="climate"><label for="lf-climate">Клімат</label>
+        <input type="radio" name="lf" id="lf-parking" value="parking"><label for="lf-parking">Паркінг</label>
+        <input type="radio" name="lf" id="lf-system" value="system"><label for="lf-system">Система</label>
+      </div>
+      <div class="card"><ol class="log" id="log-full"></ol></div>
+    </section>
+
+    <!-- ОБЛАДНАННЯ -->
+    <section class="view" data-panel="hw" aria-label="Обладнання" hidden>
+      <div class="page-head">
+        <h1>Обладнання</h1>
+        <p class="muted">Стан, перевірка й калібрування кожного модуля макета, з підключенням і технічними даними.</p>
+      </div>
+      <div class="hw-top">
+        <div class="card"><div class="stats" id="hw-stats"></div></div>
+        <div class="card service" id="svc" data-on="false">
+          <div>
+            <h2>Сервісний режим <span class="state num" id="svc-state">Вимкнено</span></h2>
+            <p class="lead" id="svc-text"></p>
+          </div>
+          <div class="btn-row"><button type="button" class="btn" id="svc-btn">Увімкнути</button><span class="small muted" id="svc-why"></span></div>
+        </div>
+      </div>
+      <div class="hw-tools">
+        <div class="filters" role="radiogroup" aria-label="Фільтр обладнання">
+          <input type="radio" name="hf" id="hf-all" value="all" checked><label for="hf-all">Усі</label>
+          <input type="radio" name="hf" id="hf-sensor" value="sensor"><label for="hf-sensor">Датчики</label>
+          <input type="radio" name="hf" id="hf-actuator" value="actuator"><label for="hf-actuator">Виконавчі пристрої</label>
+          <input type="radio" name="hf" id="hf-attn" value="attn"><label for="hf-attn">Потребують уваги</label>
+        </div>
+        <button type="button" class="btn" id="ac-btn">Автоперевірка</button>
+      </div>
+      <div class="card autocheck" id="autocheck" hidden>
+        <div class="card-head"><h2>Автоперевірка</h2><span class="small muted num" id="ac-progress"></span></div>
+        <ul class="ac-list" id="ac-list"></ul>
+        <p class="ac-sum" id="ac-sum"></p>
+      </div>
+      <div id="hw-list"></div>
+    </section>
+
+    <!-- НАЛАШТУВАННЯ -->
+    <section class="view" data-panel="settings" aria-label="Налаштування" hidden>
+      <div class="page-head">
+        <h1>Налаштування</h1>
+        <p class="muted">Зміни зберігаються в пам’яті Nanit і діють, навіть коли Wi-Fi недоступний.</p>
+      </div>
+      <div class="settings">
+        <form class="card" id="f-climate">
+          <h2>Клімат</h2>
+          <p class="lead">Вентилятор вмикається й вимикається на різних порогах, щоб не клацати туди-сюди біля межі.</p>
+          <div class="fields">
+            <div class="field"><label for="s-fan-on">Вентиляція від</label><div class="input-unit"><input type="number" id="s-fan-on" min="20" max="40" required><span>°C</span></div></div>
+            <div class="field"><label for="s-fan-off">Вимкнути при</label><div class="input-unit"><input type="number" id="s-fan-off" min="15" max="39" required><span>°C</span></div></div>
+            <div class="field"><label for="s-hum-on">Вентиляція від вологості</label><div class="input-unit"><input type="number" id="s-hum-on" min="40" max="95" required><span>%</span></div></div>
+            <div class="field"><label for="s-co-warn">CO «підвищений» від</label><div class="input-unit"><input type="number" id="s-co-warn" min="10" max="90" required><span>/ 100</span></div><span class="hint" id="co-warn-adc"></span></div>
+            <div class="field"><label for="s-co-danger">CO «небезпечний» від</label><div class="input-unit"><input type="number" id="s-co-danger" min="20" max="99" required><span>/ 100</span></div><span class="hint" id="co-danger-adc">Вмикає тривогу навіть без охорони</span></div>
+          </div>
+          <div class="form-foot"><button class="btn primary" type="submit">Зберегти</button><p class="form-msg" role="status"></p></div>
+        </form>
+
+        <form class="card" id="f-parking">
+          <h2>Паркінг</h2>
+          <p class="lead">Далекомір HC-SR04 стоїть біля шлагбаума й показує відстань до машини на дисплеї TM1637.</p>
+          <div class="fields">
+            <div class="field"><label for="s-open-dist">Відкривати ближче за</label><div class="input-unit"><input type="number" id="s-open-dist" min="3" max="30" required><span>см</span></div></div>
+            <div class="field"><label for="s-close-delay">Зачиняти після від’їзду через</label><div class="input-unit"><input type="number" id="s-close-delay" min="3" max="120" required><span>с</span></div></div>
+            <div class="field"><label for="s-stop-dist">«StOP» на дисплеї ближче за</label><div class="input-unit"><input type="number" id="s-stop-dist" min="2" max="10" required><span>см</span></div></div>
+          </div>
+          <div class="form-foot"><button class="btn primary" type="submit">Зберегти</button><p class="form-msg" role="status"></p></div>
+        </form>
+
+        <form class="card" id="f-security">
+          <h2>Охорона</h2>
+          <p class="lead">Датчик руху дає час ввести код після входу. Датчики вікна й звуку вмикають тривогу одразу.</p>
+          <div class="fields">
+            <div class="field"><label for="s-exit">Час на вихід</label><div class="input-unit"><input type="number" id="s-exit" min="0" max="120" required><span>с</span></div></div>
+            <div class="field"><label for="s-entry">Час на введення коду</label><div class="input-unit"><input type="number" id="s-entry" min="0" max="60" required><span>с</span></div></div>
+            <div class="field"><label for="s-siren">Сирена звучить</label><div class="input-unit"><input type="number" id="s-siren" min="10" max="300" required><span>с</span></div></div>
+          </div>
+          <div class="split">
+            <div class="checks" role="group" aria-labelledby="g-armed">
+              <span class="group-title" id="g-armed">«Під охороною» контролює</span>
+              <label class="check"><input type="checkbox" id="s-armed-pir">Рух у кімнаті</label>
+              <label class="check"><input type="checkbox" id="s-armed-sound">Звук</label>
+              <label class="check"><input type="checkbox" id="s-armed-window">Вікно</label>
+            </div>
+            <div class="checks" role="group" aria-labelledby="g-night">
+              <span class="group-title" id="g-night">«Нічний режим» контролює</span>
+              <label class="check"><input type="checkbox" id="s-night-pir">Рух у кімнаті</label>
+              <label class="check"><input type="checkbox" id="s-night-sound">Звук</label>
+              <label class="check"><input type="checkbox" id="s-night-window">Вікно</label>
+            </div>
+          </div>
+          <label class="check" style="margin-top:16px"><input type="checkbox" id="s-quick-arm">Ставити на охорону без коду</label>
+          <div class="form-foot"><button class="btn primary" type="submit">Зберегти</button><p class="form-msg" role="status"></p></div>
+          <hr class="divider">
+          <h2>Код охорони</h2>
+          <p class="lead">Той самий код діє на клавіатурі біля дверей.</p>
+          <div class="fields" id="pin-fields">
+            <div class="field"><label for="s-pin-old">Поточний код</label><input type="password" id="s-pin-old" inputmode="numeric" autocomplete="off" maxlength="6"></div>
+            <div class="field"><label for="s-pin-new">Новий код</label><input type="password" id="s-pin-new" inputmode="numeric" autocomplete="off" maxlength="6"><span class="hint">4–6 цифр</span></div>
+            <div class="field"><label for="s-pin-rep">Повторіть новий</label><input type="password" id="s-pin-rep" inputmode="numeric" autocomplete="off" maxlength="6"></div>
+          </div>
+          <div class="form-foot"><button class="btn" type="button" id="pin-save">Змінити код</button><p class="form-msg" role="status" id="pin-save-msg"></p></div>
+        </form>
+
+        <div class="card">
+          <h2>Wi-Fi</h2>
+          <p class="lead">Якщо мережа зникне, ESP сам підніме точку доступу «ZhukHome-Setup» для налаштування.</p>
+          <dl class="kv">
+            <dt>Мережа</dt><dd id="wifi-ssid">Zhuk_WiFi</dd>
+            <dt>Сигнал</dt><dd>−58 дБм · добрий</dd>
+            <dt>IP-адреса</dt><dd>192.168.0.42</dd>
+            <dt>Адреса в мережі</dt><dd>zhukhome.local</dd>
+          </dl>
+          <button class="btn" type="button" id="wifi-change">Змінити мережу</button>
+
+          <hr class="divider">
+          <h2>Система</h2>
+          <dl class="kv">
+            <dt>Прошивка Nanit</dt><dd>0.1.0</dd>
+            <dt>Прошивка ESP</dt><dd>0.1.0</dd>
+            <dt>Працює без перезавантаження</dt><dd id="sys-uptime">—</dd>
+            <dt>Вільна пам’ять ESP</dt><dd>31,4 КБ</dd>
+            <dt>Батарея Nanit</dt><dd>87% · 3,98 В</dd>
+          </dl>
+          <div class="btn-row">
+            <label class="btn" for="sys-ota-file">Оновити прошивку ESP…</label>
+            <input type="file" id="sys-ota-file" accept=".bin" hidden>
+            <button class="btn" type="button" id="sys-reboot">Перезавантажити</button>
+            <button class="btn danger" type="button" id="sys-reset">Скинути Wi-Fi</button>
+          </div>
+          <p class="small muted" style="margin:14px 0 0">Стан і перевірка кожного модуля — на сторінці <button type="button" class="linkbtn" data-view="hw">«Обладнання»</button>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ПРО ПРОЄКТ -->
+    <section class="view about" data-panel="about" aria-label="Про проєкт" hidden>
+      <div class="page-head">
+        <h1>Про Zhuk Home</h1>
+        <p class="muted">Демонстрація інтерфейсу · дані імітовані</p>
+      </div>
+      <p>Zhuk Home — моє бачення вебінтерфейсу Nanit Robot для навчального макета розумного будинку. Інтерфейс, протокол обміну та обидві прошивки написані заново. За основу взято навчальні проєкти NanitRobot.</p>
+      <h2>Ця сторінка — демонстрація</h2>
+      <p>Будинок тут імітований: датчики, події й рухи механізмів придумує сама сторінка, щоб інтерфейс можна було показати без макета. Робоча сторінка — це окремий файл <code>web/app.html</code>: вона вшита у прошивку ESP8266 і працює на справжніх даних від Nanit. Дві сторінки навмисно розійшлися — у робочій немає імітації, зате є транспорт до контролера, консоль модуля, налаштування Wi-Fi і часового поясу.</p>
+      <h2>Основа</h2>
+      <ul>
+        <li><a href="https://github.com/NanitRobot/ud_v3.1" target="_blank" rel="noopener">NanitRobot/ud_v3.1</a> — схема макета й логіка розумного будинку.</li>
+        <li><a href="https://github.com/NanitRobot/Nanit_WIFI_interface" target="_blank" rel="noopener">NanitRobot/Nanit_WIFI_interface</a> — оригінальна прошивка й вебсторінка для ESP8266 Witty Cloud.</li>
+        <li><a href="https://github.com/NanitRobot/NanitLib" target="_blank" rel="noopener">NanitRobot/NanitLib</a> — бібліотека плати Nanit.</li>
+      </ul>
+      <h2>Обладнання</h2>
+      <p>Контролер Nanit (ATmega2560) керує будинком сам. ESP8266 Witty Cloud на порту 11 (UART, 38400 бод) лише показує цю сторінку й передає команди.</p>
+      <dl class="ports">
+        <dt>Порт 1</dt><dd>Сервопривід штори, двигун вентилятора</dd>
+        <dt>Порт 2</dt><dd>Кроковий двигун шлагбаума</dd>
+        <dt>Порт 3</dt><dd>Світлофор паркінгу</dd>
+        <dt>Порт 4</dt><dd>RGB-світло</dd>
+        <dt>Порт 5</dt><dd>Датчик руху, датчик звуку, пасивний зумер, датчик вікна</dd>
+        <dt>Порт 6</dt><dd>DHT11, MQ-7, датчик освітленості</dd>
+        <dt>Порт 7, 10</dt><dd>Клавіатура 4×4</dd>
+        <dt>Порт 9</dt><dd>Далекомір HC-SR04, дисплей TM1637</dd>
+        <dt>Порт 11</dt><dd>ESP8266 Witty Cloud</dd>
+      </dl>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <p><strong>Zhuk Home</strong> — власне бачення вебінтерфейсу <a href="https://github.com/NanitRobot" target="_blank" rel="noopener">Nanit Robot</a>. Перероблено на основі навчального проєкту <a href="https://github.com/NanitRobot/ud_v3.1" target="_blank" rel="noopener">ud_v3.1</a> та <a href="https://github.com/NanitRobot/Nanit_WIFI_interface" target="_blank" rel="noopener">Nanit_WIFI_interface</a>.</p>
+    <p>Демонстрація: усі дані імітовані, макет не підключений. <button type="button" class="linkbtn" data-view="about">Про проєкт</button></p>
+  </footer>
+
+  <nav class="tabbar" aria-label="Розділи">
+    <button type="button" data-view="home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/></svg>Огляд</button>
+    <button type="button" data-view="log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01" stroke-width="2.6"/></svg>Журнал</button>
+    <button type="button" data-view="hw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"/></svg>Обладнання</button>
+    <button type="button" data-view="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>Налаштування</button>
+  </nav>
+</div>
+
+<dialog id="pin-dlg" aria-labelledby="pin-title">
+  <div class="dlg" id="pin-box">
+    <h2 id="pin-title">Зняти з охорони</h2>
+    <p class="small muted">Введіть код, як на клавіатурі біля дверей</p>
+    <div class="pin-dots" id="pin-dots" aria-hidden="true"></div>
+    <p class="pin-msg" id="pin-msg" role="alert"></p>
+    <div class="keypad" id="keypad">
+      <button type="button" class="key" data-key="1">1</button><button type="button" class="key" data-key="2">2</button><button type="button" class="key" data-key="3">3</button>
+      <button type="button" class="key" data-key="4">4</button><button type="button" class="key" data-key="5">5</button><button type="button" class="key" data-key="6">6</button>
+      <button type="button" class="key" data-key="7">7</button><button type="button" class="key" data-key="8">8</button><button type="button" class="key" data-key="9">9</button>
+      <button type="button" class="key fn" data-key="*" aria-label="Стерти">*</button><button type="button" class="key" data-key="0">0</button><button type="button" class="key fn" data-key="#" aria-label="Підтвердити">#</button>
+    </div>
+    <div class="dlg-foot"><span class="small muted">* стерти · # підтвердити</span><button type="button" class="btn" id="pin-close">Скасувати</button></div>
+  </div>
+</dialog>
+
+<dialog id="wifi-dlg" aria-labelledby="wifi-title">
+  <div class="dlg">
+    <h2 id="wifi-title">Мережі поблизу</h2>
+    <p class="small muted">ESP8266 бачить лише мережі 2,4 ГГц</p>
+    <div class="nets" id="nets" role="radiogroup" aria-label="Мережі поблизу"></div>
+    <div class="field"><label for="wifi-pass">Пароль</label><input type="password" id="wifi-pass" autocomplete="off"></div>
+    <p class="form-msg err" id="wifi-msg" role="status"></p>
+    <div class="dlg-foot"><button type="button" class="btn" id="wifi-cancel">Скасувати</button><button type="button" class="btn primary" id="wifi-connect">Підключити</button></div>
+  </div>
+</dialog>
+
+<div id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const now = () => Date.now();
+  const pad = n => String(n).padStart(2, '0');
+  const hhmm = t => { const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+  const hhmmss = t => hhmm(t) + ':' + pad(new Date(t).getSeconds());
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const setText = (el, v) => { if (el.textContent !== String(v)) el.textContent = v; };
+
+  const SENSOR = { pir: 'датчик руху', sound: 'датчик звуку', window: 'датчик вікна' };
+  const SENSOR_SHORT = { pir: 'рух', sound: 'звук', window: 'вікно' };
+  const CAT = { security: 'Охорона', climate: 'Клімат', parking: 'Паркінг', system: 'Система' };
+  const LOCKED = ['armed', 'night', 'entry', 'alarm'];
+  const COLORS = [
+    ['#FFC98A', 'Тепле біле'], ['#FFF3DE', 'Нейтральне біле'], ['#CFE2FF', 'Холодне біле'],
+    ['#5BD98E', 'Зелене'], ['#4C7BFF', 'Синє'], ['#B06BFF', 'Фіолетове']
+  ];
+
+  /* ---------- обладнання макета ---------- */
+  const DS = {
+    mega: 'https://ww1.microchip.com/downloads/en/devicedoc/atmel-2549-8-bit-avr-microcontroller-atmega640-1280-1281-2560-2561_datasheet.pdf',
+    st7735: 'https://www.displayfuture.com/Display/datasheet/controller/ST7735.pdf',
+    nanitlib: 'https://nanitrobot.github.io/NanitLib/',
+    sg90: 'http://www.ee.ic.ac.uk/pcheung/teaching/DE1_EE/stores/sg90_datasheet.pdf',
+    byj48: 'https://components101.com/sites/default/files/component_datasheet/28byj48-step-motor-datasheet.pdf',
+    uln2003: 'https://www.ti.com/lit/ds/symlink/uln2003a.pdf',
+    pir: 'https://cdn-learn.adafruit.com/downloads/pdf/pir-passive-infrared-proximity-motion-sensor.pdf',
+    lm393: 'https://www.ti.com/lit/ds/symlink/lm393.pdf',
+    dht11: 'https://components101.com/sites/default/files/component_datasheet/DHT11-Temperature-Sensor.pdf',
+    dhtGuide: 'https://cdn-learn.adafruit.com/downloads/pdf/dht.pdf',
+    mq7: 'https://www.sparkfun.com/datasheets/Sensors/Biometric/MQ-7.pdf',
+    ldr: 'https://cdn.sparkfun.com/datasheets/Sensors/LightImaging/SEN-09088.pdf',
+    keypad: 'https://github.com/Chris--A/Keypad',
+    hcsr04: 'https://cdn.sparkfun.com/datasheets/Sensors/Proximity/HCSR04.pdf',
+    tm1637: 'https://www.makerguides.com/wp-content/uploads/2019/08/TM1637-Datasheet.pdf',
+    esp: 'https://www.espressif.com/sites/default/files/documentation/0a-esp8266ex_datasheet_en.pdf'
+  };
+  const IMG = n => `https://github.com/NanitRobot/ud_v3.1/blob/master/images/UD_StandAlone_${n}.png`;
+  const GROUPS = [
+    { id: 'board', title: 'Плата', diagram: IMG('Full'), dtext: 'Загальна схема макета' },
+    { id: 'p1', title: 'Порт 1', diagram: IMG('Port1') },
+    { id: 'p2', title: 'Порт 2', diagram: IMG('Port2') },
+    { id: 'p3', title: 'Порт 3', diagram: IMG('Port3') },
+    { id: 'p4', title: 'Порт 4', diagram: IMG('Port4') },
+    { id: 'p5', title: 'Порт 5', diagram: IMG('Port5') },
+    { id: 'p6', title: 'Порт 6', diagram: IMG('Port6') },
+    { id: 'p7', title: 'Порти 7 і 10', diagram: IMG('Keypad') },
+    { id: 'p9', title: 'Порт 9', diagram: IMG('Port9') },
+    { id: 'p11', title: 'Порт 11', diagram: 'https://github.com/NanitRobot/Nanit_WIFI_interface/blob/main/circuit/esp8266_gizwits_witty_02.jpg', dtext: 'Схема модуля Witty Cloud' }
+  ];
+  const n = (k, label, min, max, unit, def, hint) => ({ k, label, min, max, unit, def, hint });
+  const chk = (k, label, def) => ({ k, label, type: 'check', def });
+  const HW = [
+    { id: 'nanit', g: 'board', kind: 'board', name: 'Контролер Nanit PRO', model: 'ATmega2560 · екран ST7735',
+      wiring: 'Кожен порт має адаптер: ряд +5V, ряд GND і 4 сигнальні піни. Повна карта пінів — у документації NanitLib.',
+      specs: [['Мікроконтролер', 'ATmega2560, 16 МГц'], ['Пам’ять', '256 КБ флеш, 8 КБ ОЗП, 4 КБ EEPROM'], ['Версія плати', '3.1, визначає NanitLib'], ['Екран', '1,8″, 160×128, ST7735']],
+      links: [['Даташит ATmega2560', DS.mega], ['Даташит ST7735', DS.st7735], ['Документація NanitLib', DS.nanitlib]],
+      test: 'board', calNote: 'Калібрування не потрібне.' },
+    { id: 'servo', g: 'p1', kind: 'actuator', name: 'Сервопривід штори', model: 'SG90', short: 'P1_1',
+      pins: [['Сигнал (помаранчевий)', 'P1_1', 'A7'], ['+ (червоний)', '+5V', '—'], ['− (коричневий)', 'GND', '—']],
+      wiring: 'Бібліотека Servo займає Timer5. Тому серво під’єднується лише на час руху, інакше перестає працювати ШІМ RGB-світла на порту 4. Якщо шестерня проскакує по зубчастій рейці — привід добиває шторку в упор: зменште кут «відкрито» й швидкість.',
+      specs: [['Кут повороту', '0–180°'], ['Керування', 'ШІМ 50 Гц'], ['Живлення', '4,8–6 В'], ['Момент', '1,8 кг·см']],
+      links: [['Даташит SG90', DS.sg90]], test: 'servo',
+      cal: [n('closed', 'Кут «зачинено»', 0, 180, '°', 0),
+            n('open', 'Кут «відкрито»', 0, 180, '°', 90, 'Типових 90° часто замало: підбирайте так, щоб хід закінчувався за мить до упору'),
+            n('speed', 'Швидкість', 10, 180, '°/с', 90), chk('rev', 'Обертати в інший бік', false)],
+      acts: [['angle', 'Поставити кут із поля «відкрито»']] },
+    { id: 'fan', g: 'p1', kind: 'actuator', name: 'Вентилятор', model: 'Двигун постійного струму', short: 'P1_3 · P1_4',
+      pins: [['Вивід A', 'P1_4 (MOTOR1_A)', 'D7'], ['Вивід B', 'P1_3 (MOTOR1_B)', 'D8']],
+      wiring: 'Драйвер двигуна вбудований у Nanit і вмикається піном D40 (MOTOR_ENABLE). Полярність для вентилятора неважлива.',
+      specs: [['Драйвер', 'вбудований у Nanit'], ['Керування', 'ШІМ на D7: увімкнення й швидкість'], ['Живлення', 'від плати Nanit']],
+      links: [], test: 'fan',
+      cal: [n('speed', 'Швидкість', 30, 100, '%', 100), chk('rev', 'Обертати в інший бік', false)] },
+    { id: 'stepper', g: 'p2', kind: 'actuator', name: 'Шлагбаум', model: '28BYJ-48 + драйвер ULN2003', short: 'P2_1…P2_4',
+      pins: [['IN1', 'P2_1', 'A10'], ['IN2', 'P2_2', 'A9'], ['IN3', 'P2_3', 'D42'], ['IN4', 'P2_4', 'A8'], ['+', '+5V', '—'], ['−', 'GND', '—']],
+      wiring: 'Датчика положення немає: після ввімкнення Nanit вважає шлагбаум зачиненим. Пропущені кроки нікуди не зникають, тож нуль поступово повзе — доверніть стрілу кнопками нижче й закріпіть положення. Обмотки перемикаються парами (повний крок): момент майже вдвічі більший, ніж при одній обмотці, і двигун не губить кроки під вагою стріли.',
+      specs: [['Кроків на оберт', '≈2048 (редуктор 1:64)'], ['Живлення', '5 В'], ['Драйвер', 'ULN2003, до 500 мА на канал']],
+      links: [['Даташит 28BYJ-48', DS.byj48], ['Даташит ULN2003A', DS.uln2003]], test: 'stepper',
+      cal: [n('steps', 'Кроків на 90°', 100, 2048, '', 512), n('delay', 'Пауза між кроками', 2, 10, 'мс', 3), chk('rev', 'Обертати в інший бік', false)],
+      acts: [['step-20', '−20 кроків'], ['step-5', '−5'], ['step+5', '+5'], ['step+20', '+20 кроків'],
+             ['home', 'Позначити поточне положення як зачинене']] },
+    { id: 'tlight', g: 'p3', kind: 'actuator', name: 'Світлофор паркінгу', model: '3 світлодіоди 5 мм + резистори 220 Ом', short: 'P3_2…P3_4',
+      pins: [['Червоний (анод)', 'P3_2', 'D25'], ['Жовтий (анод)', 'P3_3', 'D30'], ['Зелений (анод)', 'P3_4', 'D31'], ['Катоди', 'GND', '—']],
+      wiring: 'Резистор 220 Ом послідовно з кожним світлодіодом обмежує струм. Довша ніжка світлодіода — анод (+).',
+      specs: [['Струм', '≈10–14 мА на світлодіод'], ['Керування', 'цифрове, увімк./вимк.']],
+      links: [], test: 'tlight', calNote: 'Калібрування не потрібне.' },
+    { id: 'rgb', g: 'p4', kind: 'actuator', name: 'RGB-світло', model: 'Модуль RGB-світлодіода', short: 'P4_2…P4_4',
+      pins: [['R', 'P4_2', 'D44'], ['G', 'P4_3', 'D45'], ['B', 'P4_4', 'D46'], ['−', 'GND', '—']],
+      wiring: 'На схемі ud_v3.1 виводи модуля йдуть у порядку B, G, R, −. Якщо світиться не той колір, змініть порядок каналів у калібруванні замість перепаювання.',
+      specs: [['Керування', 'ШІМ (Timer5), 256 рівнів на канал'], ['Тип', 'спільний катод: світиться при HIGH']],
+      links: [], test: 'rgb',
+      cal: [{ k: 'order', label: 'Порядок каналів', type: 'select', options: ['RGB', 'RBG', 'GRB', 'GBR', 'BRG', 'BGR'], def: 'RGB' }, chk('inv', 'Спільний анод (інвертувати сигнал)', false)] },
+    { id: 'pir', g: 'p5', kind: 'sensor', name: 'Датчик руху', model: 'HC-SR501', short: 'P5_1',
+      pins: [['OUT', 'P5_1', 'D2'], ['VCC', '+5V', '—'], ['GND', 'GND', '—']],
+      wiring: 'Потенціометр Sx задає дальність, Tx — скільки тримається сигнал. Для охорони виставте Tx на мінімум, а перемичку — в режим повторного спрацювання (H).',
+      specs: [['Дальність', 'до 7 м, регулюється'], ['Кут огляду', '≈110°'], ['Вихід', 'HIGH, поки є рух'], ['Прогрів', 'до 60 с після ввімкнення']],
+      links: [['Посібник Adafruit з PIR-датчиків', DS.pir]], test: 'wait', ask: 'Пройдіть або помахайте рукою перед датчиком',
+      cal: [n('warm', 'Ігнорувати після ввімкнення', 0, 120, 'с', 60), n('pulse', 'Мінімальна тривалість сигналу', 0, 2000, 'мс', 200)] },
+    { id: 'sound', g: 'p5', kind: 'sensor', name: 'Датчик звуку', model: 'Мікрофон з компаратором LM393', short: 'P5_2',
+      pins: [['D0', 'P5_2', 'A1'], ['+', '+5V', '—'], ['G', 'GND', '—']],
+      wiring: 'Сигнал береться з D0, а не з A0: прошивка читає готовий поріг компаратора. Поріг задає синій потенціометр — крутіть у тиші, поки смикання не припиниться, потім перевірте оплеском. Заводське положення потенціометра майже завжди непридатне: модуль або глухий, або спрацьовує від фонового шуму.',
+      specs: [['Вихід', 'LOW при гучному звуці'], ['Реагує на', 'різкі звуки: оплески, удари'], ['Компаратор', 'LM393']],
+      links: [['Даташит LM393', DS.lm393]], test: 'wait', ask: 'Плесніть у долоні біля датчика',
+      cal: [n('peaks', 'Сплесків для спрацювання', 1, 10, '', 3), n('win', 'За час', 500, 5000, 'мс', 2000), chk('siren', 'Не слухати під час сирени й зумера', true)] },
+    { id: 'buzzer', g: 'p5', kind: 'actuator', name: 'Зумер', model: 'KY-006, пасивний', short: 'P5_3',
+      pins: [['S', 'P5_3', 'A12'], ['−', 'GND', '—']],
+      wiring: 'Пасивному зумеру потрібен змінний сигнал, частоту задає tone(). Тому він грає мелодії, а не лише пищить. Середній вивід модуля не під’єднується.',
+      specs: [['Тип', 'пасивний, звук задає частота'], ['Керування', 'tone(), мелодії через NonBlockingRTTTL']],
+      links: [], test: 'buzzer',
+      cal: [n('tone', 'Звук клавіш', 500, 4000, 'Гц', 2000), chk('keys', 'Пищати при натисканні клавіш', true)] },
+    { id: 'window', g: 'p5', kind: 'sensor', name: 'Датчик вікна', model: 'TCRT5000, ІЧ-датчик перешкоди', short: 'P5_4',
+      pins: [['D0 (цифровий)', 'P5_4', 'D33'], ['A0 (аналоговий)', 'не під’єднувати', '—'], ['VCC', '+5V', '—'], ['GND', 'GND', '—']],
+      wiring: 'Модуль має чотири виводи, і сигнал треба брати саме з D0. Пін P5_4 — це D33, суто цифровий, без АЦП: під’єднаний A0 дає незмінну одиницю, схожу на справне «вільно», тому помилку легко не помітити. Дальність задає потенціометр: коли датчик бачить перешкоду, на модулі світиться світлодіод, а на D0 з’являється LOW.',
+      specs: [['Дальність', '2–30 см, регулюється'], ['Вихід', 'LOW, коли є перешкода'], ['Компаратор', 'LM393']],
+      links: [['Даташит LM393', DS.lm393]], test: 'wait', ask: 'Піднесіть руку до вікна',
+      cal: [n('deb', 'Антибрязкіт', 0, 1000, 'мс', 100),
+            n('hold', 'Тримати руку для жесту', 200, 3000, 'мс', 1000, 'Скільки тримати руку біля датчика, щоб жест зарахувався'),
+            chk('gest', 'Жест рукою перемикає штору', true), chk('inv', 'Інвертувати вихід', false)] },
+    { id: 'dht', g: 'p6', kind: 'sensor', name: 'Температура й вологість', model: 'DHT11 (модуль KY-015)', short: 'P6_1',
+      pins: [['S', 'P6_1', 'D23'], ['V', '+5V', '—'], ['g', 'GND', '—']],
+      wiring: 'Між опитуваннями має минути щонайменше 1 с, тому Nanit читає датчик раз на 2 с. Збій видно одразу: датчик не відповідає або не сходиться контрольна сума.',
+      specs: [['Температура', '0–50 °C, ±2 °C, крок 1 °C'], ['Вологість', '20–90 %, ±5 %, крок 1 %'], ['Інтерфейс', 'один провід, власний протокол']],
+      links: [['Даташит DHT11', DS.dht11], ['Посібник Adafruit з DHT', DS.dhtGuide]], test: 'dht',
+      cal: [n('tOff', 'Поправка температури', -5, 5, '°C', 0), n('hOff', 'Поправка вологості', -10, 10, '%', 0)] },
+    { id: 'mq7', g: 'p6', kind: 'sensor', name: 'Чадний газ', model: 'MQ-7', short: 'P6_2',
+      pins: [['AO', 'P6_2', 'A14'], ['VCC', '+5V', '—'], ['GND', 'GND', '—']],
+      wiring: 'Датчик гріється, тому після ввімкнення показники стабілізуються кілька хвилин. На модулі нагрівач завжди на 5 В, без циклу 5 В / 1,4 В з даташита, тож показник відносний, а не ppm.',
+      specs: [['Газ', 'чадний газ (CO)'], ['Діапазон за даташитом', '20–2000 ppm'], ['Вихід', 'аналоговий, 0–5 В']],
+      links: [['Даташит MQ-7', DS.mq7]], test: 'mq7',
+      cal: [n('warm', 'Час прогріву', 0, 600, 'с', 180),
+            n('base', 'Чисте повітря', 0, 1023, 'АЦП', 190, 'У кожного модуля своє: зніміть кнопкою нижче після прогріву')],
+      acts: [['base', 'Взяти поточне значення як чисте повітря']] },
+    { id: 'ldr', g: 'p6', kind: 'sensor', name: 'Датчик освітленості', model: 'Фоторезистор з компаратором LM393', short: 'P6_3',
+      pins: [['A0', 'P6_3', 'A13'], ['+5V', '+5V', '—'], ['GND', 'GND', '—'], ['D0', 'не під’єднано', '—']],
+      wiring: 'Під’єднано аналоговий вихід A0, тож Nanit бачить рівень світла 0–1023. Чим темніше, тим більше значення. Поріг «темно» задається тут, без викрутки.',
+      specs: [['Вихід', 'аналоговий A0 і цифровий D0'], ['Темніше', 'більше значення АЦП']],
+      links: [['Даташит фоторезистора', DS.ldr], ['Даташит LM393', DS.lm393]], test: 'wait', ask: 'Накрийте датчик долонею',
+      cal: [n('th', 'Поріг темряви', 0, 1023, 'АЦП', 400, 'Вище цього значення — темно'), n('hyst', 'Гістерезис', 0, 200, 'АЦП', 40)],
+      acts: [['take', 'Взяти поточне значення як поріг']] },
+    { id: 'keypad', g: 'p7', kind: 'ui', name: 'Клавіатура', model: 'Мембранна 4×4', short: 'P7 · P10',
+      pins: [['R1', 'P7_4', 'D9'], ['R2', 'P7_3', 'D28'], ['R3', 'P7_2', 'A4'], ['R4', 'P7_1', 'A3'], ['C1', 'P10_1', 'A2'], ['C2', 'P10_2', 'A0'], ['C3', 'P10_3', 'D24'], ['C4', 'P10_4', 'D6']],
+      wiring: 'Живлення не потрібне. Шлейф має 8 виводів: зліва направо R1–R4, потім C1–C4. Якщо переплутати порядок, клавіші будуть «не ті» — це одразу видно в перевірці.',
+      specs: [['Клавіш', '16: 0–9, A–D, *, #'], ['Сканування', 'бібліотека Keypad'], ['Живлення', 'не потрібне']],
+      links: [['Бібліотека Keypad', DS.keypad]], test: 'keypad',
+      cal: [chk('swap', 'Поміняти рядки й стовпці місцями', false), n('deb', 'Антибрязкіт', 5, 100, 'мс', 10)] },
+    { id: 'hcsr04', g: 'p9', kind: 'sensor', name: 'Далекомір паркінгу', model: 'HC-SR04', short: 'P9_3 · P9_4',
+      pins: [['Trig', 'P9_3', 'D19'], ['Echo', 'P9_4', 'D10'], ['VCC', '+5V', '—'], ['GND', 'GND', '—']],
+      wiring: 'М’які й похилі поверхні погано відбивають ультразвук. Якщо відлуння не повернулося, Nanit вважає, що виміру немає, а не що відстань 0 см.',
+      specs: [['Дальність', '2–400 см'], ['Точність', '≈3 мм'], ['Кут вимірювання', '15°'], ['Період', 'не частіше ніж раз на 60 мс']],
+      links: [['Даташит HC-SR04', DS.hcsr04]], test: 'hcsr04',
+      cal: [n('off', 'Поправка відстані', -10, 10, 'см', 0), n('n', 'Вимірів для медіани', 1, 9, '', 5), n('max', 'Максимальна відстань', 50, 400, 'см', 200)] },
+    { id: 'tm1637', g: 'p9', kind: 'ui', name: 'Дисплей паркінгу', model: '4 розряди, TM1637', short: 'P9_1 · P9_2',
+      pins: [['CLK', 'P9_1', 'D21'], ['DIO', 'P9_2', 'D20'], ['VCC', '+5V', '—'], ['GND', 'GND', '—']],
+      wiring: 'D20 і D21 на Mega — це ще й шина I²C (SDA, SCL). Не під’єднуйте на порт 9 I²C-модулі разом із дисплеєм.',
+      specs: [['Розряди', '4 і двокрапка'], ['Яскравість', '8 рівнів'], ['Інтерфейс', '2 дроти, власний протокол (не I²C)']],
+      links: [['Даташит TM1637', DS.tm1637]], test: 'tm1637',
+      cal: [{ k: 'br', label: 'Яскравість', type: 'range', min: 0, max: 7, unit: 'з 7', def: 7 }] },
+    { id: 'esp', g: 'p11', kind: 'link', name: 'Модуль Wi-Fi', model: 'ESP8266 Witty Cloud', short: 'P11_1 · P11_2',
+      pins: [['RX (ESP)', 'P11_1 · TX3', 'D14'], ['TX (ESP)', 'P11_2 · RX3', 'D15'], ['VCC', '+5V', '—'], ['GND', 'GND', '—']],
+      wiring: 'TX одного пристрою йде на RX іншого. Раз на секунду Nanit надсилає стан, а ESP передає команди з цієї сторінки.',
+      specs: [['Чип', 'ESP8266EX, 80 МГц'], ['Wi-Fi', '2,4 ГГц, 802.11 b/g/n'], ['Флеш', '4 МБ'], ['Зв’язок з Nanit', 'UART 38400 бод, пакети з контрольною сумою']],
+      links: [['Даташит ESP8266EX', DS.esp], ['Оригінальна прошивка Nanit_WIFI_interface', 'https://github.com/NanitRobot/Nanit_WIFI_interface']],
+      test: 'esp', calNote: 'Налаштування Wi-Fi — на сторінці «Налаштування».' }
+  ];
+  const HWM = Object.fromEntries(HW.map(c => [c.id, c]));
+  HW.forEach(c => { c.val = Object.fromEntries((c.cal || []).map(f => [f.k, f.def])); c.result = null; c.lastOk = 0; });
+  HWM.keypad.keys = new Set();
+  HWM.sound.fixed = false;
+  const SVC_TESTS = new Set(['servo', 'fan', 'stepper', 'tlight', 'rgb']);
+
+  const cfg = {
+    fanOn: 28, fanOff: 26, humOn: 66, coWarn: 40, coDanger: 70,
+    openDist: 8, closeDelay: 10, stopDist: 3,
+    exitDelay: 30, entryDelay: 15, siren: 60, quickArm: true,
+    armed: { pir: true, sound: true, window: true },
+    night: { pir: false, sound: true, window: true }
+  };
+  let PIN = '1234';
+
+  const T0 = now();
+  const st = {
+    view: 'home', online: true, lastSeen: T0, bootAt: T0 - (3 * 3600 + 12 * 60) * 1000,
+    tempF: 26.3, humF: 44, coF: 16, temp: 26, hum: 44, co: 16,
+    bright: true, ambient: true, ldrRaw: 180, mqRaw: 197, noEcho: false, coHigh: false,
+    ram: 2140, loopMs: '3,2', ping: 11,
+    service: false, serviceUntil: 0,
+    test: { fanUntil: 0, lightUntil: 0, lightColor: '', tl: '', tlUntil: 0, seg: '', segUntil: 0 },
+    hist: { temp: [], hum: [], co: [] }, histVer: 0,
+    sec: 'disarmed', pending: 'armed', secUntil: 0, entryFrom: 'armed', alarmFrom: 'armed',
+    trigger: null, alarmAt: 0, sirenUntil: 0, wrong: 0, lockUntil: 0,
+    coAlarm: false, coMuted: false,
+    at: { pir: 0, sound: 0, window: 0 },
+    fan: { mode: 'auto', on: false, why: '' },
+    win: { mode: 'auto', manual: 60, pos: 100, target: 100, why: '', blocked: false },
+    gate: { mode: 'auto', pos: 'closed', moveUntil: 0, leftAt: 0, reason: '' },
+    car: { phase: 'none', dist: 112 },
+    light: { mode: 'auto', on: false, color: COLORS[0][0], level: 70, why: '' },
+    log: [], logVer: 0
+  };
+
+  /* ---------- журнал ---------- */
+  function log(cat, text, level = 'info', t = now()) {
+    st.log.unshift({ t, cat, text, level });
+    if (st.log.length > 200) st.log.pop();
+    st.logVer++;
+  }
+  const M = 60e3;
+  log('system', 'Nanit увімкнено, прошивка 0.1.0', 'info', st.bootAt);
+  log('system', 'ESP підключився до Wi-Fi «Zhuk_WiFi» (−58 дБм)', 'info', st.bootAt + 9e3);
+  log('security', 'Охорону знято кодом на клавіатурі', 'info', T0 - 176 * M);
+  log('parking', 'Шлагбаум відкрито: машина за 7 см', 'info', T0 - 150 * M);
+  log('parking', 'Шлагбаум зачинено: машина від’їхала', 'info', T0 - 149 * M);
+  log('climate', 'Вентиляцію ввімкнено: 28 °C', 'info', T0 - 96 * M);
+  log('climate', 'Вентиляцію вимкнено: 26 °C', 'info', T0 - 64 * M);
+  log('security', 'Невірний код на клавіатурі (1 з 3)', 'warn', T0 - 41 * M);
+
+  /* ---------- історія для міні-графіків ---------- */
+  function seed(key, end, spread, lo, hi) {
+    const a = []; let v = end;
+    for (let i = 0; i < 60; i++) { a.unshift(Math.round(v)); v = clamp(v + rnd(-spread, spread), lo, hi); }
+    st.hist[key] = a;
+  }
+  seed('temp', 26, 0.35, 23, 28); seed('hum', 44, 1.2, 36, 52); seed('co', 16, 1.6, 8, 26);
+  function pushHist() {
+    for (const k of ['temp', 'hum', 'co']) { st.hist[k].push(st[k]); if (st.hist[k].length > 60) st.hist[k].shift(); }
+    st.histVer++;
+  }
+
+  /* ---------- охорона ---------- */
+  function monitored(mode) { return cfg[mode] ? Object.keys(SENSOR).filter(k => cfg[mode][k]) : []; }
+  function arm(mode, by) {
+    if (st.sec !== 'disarmed') return false;
+    st.sec = 'exit'; st.pending = mode; st.secUntil = now() + cfg.exitDelay * 1000;
+    log('security', `${mode === 'night' ? 'Нічний режим' : 'Постановка на охорону'} (${by}): ${cfg.exitDelay} с на вихід`);
+    return true;
+  }
+  function disarm(by) {
+    const was = st.sec;
+    st.sec = 'disarmed'; st.trigger = null; st.sirenUntil = 0;
+    log('security', was === 'exit' ? `Постановку скасовано (${by})` : `Охорону знято (${by})`);
+  }
+  function raiseAlarm(name, t) {
+    st.alarmFrom = st.sec === 'entry' ? st.entryFrom : st.sec;
+    st.sec = 'alarm'; st.trigger = name; st.alarmAt = t; st.sirenUntil = t + cfg.siren * 1000;
+    log('security', `ТРИВОГА: спрацював ${SENSOR[name]}`, 'crit', t);
+  }
+  function trigger(name) {
+    const t = now();
+    if (name === 'sound' && t < st.sirenUntil) { toast('Датчик звуку не реагує, поки звучить сирена'); return; }
+    st.at[name] = t;
+    if (st.sec === 'armed' || st.sec === 'night') {
+      if (!cfg[st.sec][name]) return;
+      if (name === 'pir') {
+        st.entryFrom = st.sec; st.sec = 'entry'; st.trigger = name; st.secUntil = t + cfg.entryDelay * 1000;
+        log('security', `Рух під охороною: ${cfg.entryDelay} с на введення коду`, 'warn', t);
+      } else raiseAlarm(name, t);
+    } else if (st.sec === 'entry' && name !== 'pir' && cfg[st.entryFrom][name]) {
+      raiseAlarm(name, t);
+    }
+  }
+  function stepSecurity(t) {
+    if (st.sec === 'exit' && t >= st.secUntil) {
+      st.sec = st.pending;
+      log('security', st.sec === 'night' ? 'Нічний режим увімкнено' : 'Будинок під охороною', 'info', t);
+    }
+    if (st.sec === 'entry' && t >= st.secUntil) raiseAlarm(st.trigger, t);
+    if (st.lockUntil && t >= st.lockUntil) st.lockUntil = 0;
+  }
+
+  /* ---------- датчики й автоматика ---------- */
+  function stepSensors() {
+    st.tempF = clamp(st.tempF + (st.fan.on ? -0.09 : 0.035) + rnd(-0.03, 0.03), 21, 31);
+    st.humF = clamp(st.humF + rnd(-0.6, 0.6) + (st.fan.on ? -0.15 : 0.03), 32, 72);
+    const target = st.coHigh ? 86 : 15;
+    st.coF = clamp(st.coF + (target - st.coF) * (st.coHigh ? 0.2 : 0.12) + rnd(-0.8, 0.8), 5, 99);
+    const d = HWM.dht.val;
+    st.temp = Math.round(st.tempF) + d.tOff; st.hum = clamp(Math.round(st.humF) + d.hOff, 0, 100); st.co = Math.round(st.coF);
+    st.mqRaw = clamp(Math.round(HWM.mq7.val.base + (st.coF - 15) * 7 + rnd(-3, 3)), 0, 1023);
+    st.ram = 2100 + Math.round(rnd(0, 80)); st.loopMs = (3 + rnd(0, 0.6)).toFixed(1).replace('.', ','); st.ping = 8 + Math.round(rnd(0, 8));
+    stepLdr();
+  }
+  function stepLdr() {
+    const c = HWM.ldr.val;
+    st.ldrRaw = Math.round((st.ambient ? 180 : 700) + rnd(-8, 8));
+    if (st.bright && st.ldrRaw > c.th + c.hyst) st.bright = false;
+    else if (!st.bright && st.ldrRaw < c.th - c.hyst) st.bright = true;
+  }
+  function stepCO() {
+    if (!st.coAlarm && st.co >= cfg.coDanger) {
+      st.coAlarm = true; st.coMuted = false;
+      log('climate', `Небезпечний рівень CO (${st.co}): вентиляцію й штору відкрито примусово`, 'crit');
+    } else if (st.coAlarm && st.co < cfg.coDanger - 10) {
+      st.coAlarm = false; log('climate', 'Рівень CO повернувся до норми');
+    }
+  }
+  function stepFan() {
+    const f = st.fan; let on;
+    if (st.coAlarm) { on = true; f.why = 'Примусово: небезпечний рівень CO'; }
+    else if (st.service) { on = now() < st.test.fanUntil; f.why = 'Сервісний режим: автоматика на паузі'; }
+    else if (f.mode === 'on') { on = true; f.why = 'Увімкнено вручну'; }
+    else if (f.mode === 'off') { on = false; f.why = 'Вимкнено вручну'; }
+    else {
+      on = f.on
+        ? !(st.temp <= cfg.fanOff && st.hum < cfg.humOn - 4 && st.co < cfg.coWarn - 5)
+        : (st.temp >= cfg.fanOn || st.hum >= cfg.humOn || st.co >= cfg.coWarn);
+      f.why = on
+        ? `Авто: вимкнеться при ${cfg.fanOff} °C`
+        : `Авто: увімкнеться при ${cfg.fanOn} °C, вологості ${cfg.humOn}% або підвищеному CO`;
+      if (on !== f.on) log('climate', `Вентиляцію ${on ? 'ввімкнено' : 'вимкнено'}: ${st.temp} °C, ${st.hum}%`);
+    }
+    f.on = on;
+  }
+  function stepWindow(t) {
+    const w = st.win; let target;
+    if (st.coAlarm) { target = 100; w.why = 'Примусово відкрито: небезпечний рівень CO'; }
+    else if (st.service) { target = w.target; w.why = 'Сервісний режим: автоматика на паузі'; }
+    else if (st.sec !== 'disarmed') { target = 0; w.why = 'Зачинено: будинок під охороною'; }
+    else if (w.mode === 'manual') { target = w.manual; w.why = 'Вручну'; }
+    else { target = st.bright ? 100 : 0; w.why = st.bright ? 'Авто: світло, штору відкрито' : 'Авто: темно, штору зачинено'; }
+    w.target = target;
+    w.blocked = target < w.pos && st.sec === 'disarmed' && t - st.at.window < 4000;
+    if (!w.blocked && w.pos !== target) w.pos += Math.sign(target - w.pos) * Math.min(10, Math.abs(target - w.pos));
+  }
+  function reading() {
+    const c = HWM.hcsr04.val;
+    if (st.noEcho) return null;
+    const d = Math.max(2, st.car.dist + c.off);
+    return d > c.max ? null : d;
+  }
+  function stepCar() {
+    const c = st.car;
+    if (c.phase === 'arriving') { c.dist = Math.max(5, c.dist - 3); if (c.dist === 5) c.phase = 'parked'; }
+    else if (c.phase === 'leaving') { c.dist = Math.min(112, c.dist + 6); if (c.dist >= 112) c.phase = 'none'; }
+    else if (c.phase === 'none') c.dist = 110 + Math.round(rnd(0, 4));
+  }
+  const gateOpenish = g => g.pos === 'open' || g.pos === 'opening';
+  function gateMove(want, reason) {
+    const g = st.gate;
+    if (want === (gateOpenish(g) ? 'open' : 'closed')) return false;
+    g.pos = want === 'open' ? 'opening' : 'closing'; g.moveUntil = now() + 2500; g.reason = reason; g.leftAt = 0;
+    return true;
+  }
+  function stepGate(t) {
+    const g = st.gate, d = reading(), locked = LOCKED.includes(st.sec);
+    if (g.pos === 'opening' && t >= g.moveUntil) { g.pos = 'open'; log('parking', `Шлагбаум відкрито: ${g.reason}`); }
+    if (g.pos === 'closing' && t >= g.moveUntil) { g.pos = 'closed'; log('parking', `Шлагбаум зачинено: ${g.reason}`); }
+    if (st.service) return;
+    let want = gateOpenish(g) ? 'open' : 'closed', reason = '';
+    if (locked) { want = 'closed'; reason = 'будинок під охороною'; }
+    else if (g.mode === 'open') { want = 'open'; reason = 'вручну'; }
+    else if (g.mode === 'close') { want = 'closed'; reason = 'вручну'; }
+    else if (d !== null) {
+      if (d <= cfg.openDist) { want = 'open'; g.leftAt = 0; reason = `машина за ${d} см`; }
+      else if (want === 'open') {
+        if (!g.leftAt) g.leftAt = t;
+        if (t - g.leftAt >= cfg.closeDelay * 1000) { want = 'closed'; reason = 'машина від’їхала'; }
+      }
+    }
+    gateMove(want, reason);
+  }
+  function stepLight(t) {
+    const L = st.light; const recent = t - st.at.pir < 60000;
+    if (st.sec === 'alarm') { L.on = true; L.why = 'Тривога: світло блимає червоним'; }
+    else if (st.service) { L.on = t < st.test.lightUntil; L.why = 'Сервісний режим: автоматика на паузі'; }
+    else if (L.mode === 'on') { L.on = true; L.why = 'Увімкнено вручну'; }
+    else if (L.mode === 'off') { L.on = false; L.why = 'Вимкнено вручну'; }
+    else {
+      L.on = !st.bright && recent;
+      L.why = st.bright ? 'Авто: зараз світло, лампа не потрібна'
+        : recent ? `Авто: темно й є рух, вимкнеться через ${Math.ceil((60000 - (t - st.at.pir)) / 1000)} с`
+        : 'Авто: увімкнеться, коли темно й є рух';
+    }
+  }
+
+  let tickN = 0;
+  function step() {
+    if (!st.online) return;
+    const t = now(); st.lastSeen = t;
+    if (st.service && t >= st.serviceUntil) setService(false, 'минуло 10 хв');
+    if (tickN % 4 === 0) stepSensors();
+    if (tickN % 20 === 0) pushHist();
+    stepCar();
+    stepSecurity(t); stepCO(); stepFan(); stepWindow(t); stepGate(t); stepLight(t);
+  }
+
+  /* ---------- 7-сегментний дисплей (як TM1637 на макеті) ---------- */
+  const SEG = { a: [3, .6, 6, 1.8], b: [9.6, 2.6, 1.8, 6.4], c: [9.6, 11, 1.8, 6.4], d: [3, 17.6, 6, 1.8], e: [.6, 11, 1.8, 6.4], f: [.6, 2.6, 1.8, 6.4], g: [3, 9.1, 6, 1.8] };
+  const GLYPH = { '0': 'abcdef', '1': 'bc', '2': 'abdeg', '3': 'abcdg', '4': 'bcfg', '5': 'acdfg', '6': 'acdefg', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', S: 'acdfg', t: 'defg', O: 'abcdef', P: 'abefg', W: 'bdfg', A: 'abcefg', I: 'bc', n: 'ceg', E: 'adefg', B: 'abcdefg', L: 'def', C: 'adef', '-': 'g', ' ': '' };
+  const seg7 = $('#seg7');
+  seg7.innerHTML = [0, 1, 2, 3].map(() => `<svg viewBox="0 0 12 20" aria-hidden="true"><g transform="translate(1 0) skewX(-6)">${Object.entries(SEG).map(([k, r]) => `<rect class="s" data-seg="${k}" x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx=".8"/>`).join('')}</g></svg>`).join('');
+  let segShown = null;
+  function drawSeg(text) {
+    if (text === segShown) return; segShown = text;
+    $$('svg', seg7).forEach((svg, i) => {
+      const on = GLYPH[text[i]] || '';
+      $$('.s', svg).forEach(r => r.classList.toggle('on', on.includes(r.dataset.seg)));
+    });
+    seg7.setAttribute('aria-label', 'Дисплей паркінгу: ' + (text.trim() || 'порожньо'));
+  }
+  function segText() {
+    const g = st.gate, d = reading();
+    if (now() < st.test.segUntil) return st.test.seg;
+    if (g.pos === 'opening' || g.pos === 'closing') return 'WAIt';
+    if (g.pos === 'open') return 'OPEn';
+    if (LOCKED.includes(st.sec)) return 'BLOC';
+    if (d === null) return '----';
+    if (d < 50) return d <= cfg.stopDist ? (tickN % 2 ? 'StOP' : '    ') : String(d).padStart(4, ' ');
+    return 'StOP';
+  }
+
+  /* ---------- рендер ---------- */
+  const TITLES = { disarmed: 'Знято з охорони', exit: 'Постановка на охорону', armed: 'Під охороною', night: 'Нічний режим', entry: 'Введіть код', alarm: 'Тривога' };
+  const ACTIONS = {
+    disarmed: '<button type="button" class="btn primary" data-act="arm">Поставити на охорону</button><button type="button" class="btn" data-act="night">Нічний режим</button>',
+    exit: '<button type="button" class="btn" data-act="cancel">Скасувати</button>',
+    armed: '<button type="button" class="btn primary" data-act="disarm">Зняти з охорони</button>',
+    night: '<button type="button" class="btn primary" data-act="disarm">Зняти з охорони</button>',
+    entry: '<button type="button" class="btn primary" data-act="disarm">Ввести код</button>',
+    alarm: '<button type="button" class="btn primary" data-act="disarm">Зняти з охорони</button>'
+  };
+  const listOf = mode => monitored(mode).map(k => SENSOR_SHORT[k]).join(', ') || 'нічого';
+  function heroSub(t) {
+    switch (st.sec) {
+      case 'disarmed': return 'Датчики не контролюються. Увімкніть охорону тут або кодом на клавіатурі біля дверей.';
+      case 'exit': return `Залиште будинок до кінця відліку. Потім контролюватимуться: ${listOf(st.pending)}.`;
+      case 'armed': return `Контролюються: ${listOf('armed')}. Штору зачинено, шлагбаум заблоковано.`;
+      case 'night': return `Контролюються: ${listOf('night')}.` + (cfg.night.pir ? '' : ' Рух у кімнаті не вмикає тривогу.');
+      case 'entry': return 'Датчик руху побачив людину. Введіть код, інакше ввімкнеться тривога.';
+      case 'alarm': {
+        const left = Math.ceil((st.sirenUntil - t) / 1000);
+        return `Спрацював ${SENSOR[st.trigger]} о ${hhmmss(st.alarmAt)}. ` + (left > 0
+          ? `Сирена звучить ще ${left} с.`
+          : `Сирена вимкнулась через ${cfg.siren} с, тривога триває до зняття з охорони.`);
+      }
+    }
+    return '';
+  }
+  let heroKey = '';
+  function renderHero(t) {
+    $('#hero').dataset.state = st.sec;
+    setText($('#sec-title'), TITLES[st.sec]);
+    setText($('#sec-sub'), heroSub(t));
+    const counting = st.sec === 'exit' || st.sec === 'entry';
+    $('#sec-count').hidden = !counting;
+    if (counting) setText($('#sec-count-n'), Math.max(0, Math.ceil((st.secUntil - t) / 1000)));
+    if (heroKey !== st.sec) { heroKey = st.sec; $('#sec-actions').innerHTML = ACTIONS[st.sec]; }
+  }
+  let pinBuf = '', pinAction = null;
+
+
+  /* ---------- дзеркало екрана Nanit ----------
+     Рядки складаємо тими самими форматами, що й display.cpp, щоб відступи
+     пробілами збігалися з тим, що реально малює прошивка. */
+  const SC_COLOR = { white:'#FFFFFF', gray:'#838183', slate:'#292829', green:'#00FF00',
+                     dkgreen:'#006500', red:'#FF0000', orange:'#FFA500', yellow:'#FFFF00', cyan:'#00FFFF' };
+  const scPad = (v, n) => String(v).padStart(n, ' ');
+  const scPadEnd = (v, n) => String(v).padEnd(n, ' ');
+
+  function screenRows(t) {
+    const r = {};
+    const d = new Date(t);
+    r.clock = [String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'), SC_COLOR.gray];
+
+    let net = 'WiFi-58', netC = SC_COLOR.white;
+    if (!st.online) { net = 'no ESP'; netC = SC_COLOR.orange; }
+    r.status = [scPad(net, 9) + ' ' + scPad(87, 3) + '%', netC];
+
+    let secTxt = 'DISARMED', fg = SC_COLOR.white, bg = SC_COLOR.slate;
+    const left = Math.max(0, Math.ceil((st.secUntil - t) / 1000));
+    if (st.sec === 'exit') { secTxt = 'EXIT ' + left + 's'; fg = '#000'; bg = SC_COLOR.orange; }
+    else if (st.sec === 'entry') { secTxt = 'CODE! ' + left + 's'; fg = '#000'; bg = SC_COLOR.orange; }
+    else if (st.sec === 'armed') { secTxt = 'ARMED'; bg = SC_COLOR.dkgreen; }
+    else if (st.sec === 'night') { secTxt = 'NIGHT MODE'; bg = SC_COLOR.dkgreen; }
+    else if (st.sec === 'alarm') { secTxt = 'ALARM!'; bg = SC_COLOR.red; }
+    else if (st.service) { secTxt = 'SERVICE'; fg = '#000'; bg = SC_COLOR.orange; }
+    r.sec = [secTxt, fg, bg];
+
+    r.climate = [scPad(st.temp, 3) + 'C  ' + scPad(st.hum, 3) + '%', SC_COLOR.white];
+
+    const lvl = st.co >= cfg.coDanger ? 'ALARM' : st.co >= cfg.coWarn ? 'high' : 'ok';
+    r.co = ['CO ' + scPad(st.co, 3) + ' ' + lvl,
+            st.co >= cfg.coDanger ? SC_COLOR.red : st.co >= cfg.coWarn ? SC_COLOR.orange : SC_COLOR.green];
+
+    const gs = { closed:'closed', opening:'opening', open:'open', closing:'closing' }[st.gate.pos];
+    const dist = reading();
+    r.gate = ['Gate ' + scPadEnd(gs, 7) + '  car ' + (dist === null ? ' --' : scPad(dist, 3) + 'cm'), SC_COLOR.cyan];
+
+    r.dev = ['Fan ' + scPadEnd(st.fan.on ? 'on' : 'off', 3) + ' Win ' + scPad(st.win.pos, 3) + '% Lt ' + (st.light.on ? 'on' : 'off'), SC_COLOR.gray];
+
+    if (pinBuf.length) r.bottom = ['Code: ' + '*'.repeat(pinBuf.length), SC_COLOR.yellow];
+    else if (st.service) { const sv = Math.max(0, Math.ceil((st.serviceUntil - t) / 1000));
+      r.bottom = ['Service mode ' + Math.floor(sv / 60) + ':' + String(sv % 60).padStart(2,'0'), SC_COLOR.orange]; }
+    else if (st.coAlarm) r.bottom = ['CO ALARM! press C to mute', SC_COLOR.red];
+    else if (st.online) r.bottom = ['IP 192.168.0.42', SC_COLOR.gray];
+    else r.bottom = ['Zhuk Home 0.1.0', SC_COLOR.gray];
+    return r;
+  }
+
+  const SC_WHAT = [
+    ['clock','Годинник','час з ESP, або --:-- поки його немає'],
+    ['status','Мережа','no ESP, no WiFi, AP або рівень сигналу й заряд'],
+    ['sec','Охорона','DISARMED · ARMED · NIGHT MODE · EXIT · CODE! · ALARM! · SERVICE'],
+    ['climate','Клімат','температура й вологість, --C поки DHT11 мовчить'],
+    ['co','Чадний газ','CO warm-up перші 180 с, далі ok · high · ALARM'],
+    ['gate','Паркінг','стан шлагбаума й відстань до машини'],
+    ['dev','Пристрої','вентилятор, положення штори, світло'],
+    ['bottom','Нижній рядок','Code: *** · Service mode · CO ALARM! · IP · версія']
+  ];
+
+  function renderScreen(t) {
+    const r = screenRows(t);
+    for (const [id] of SC_WHAT) {
+      const el = $('#sc-' + id);
+      setText(el, r[id][0]);
+      if (el.style.color !== r[id][1]) el.style.color = r[id][1];
+    }
+    $('#sc-bar').style.background = r.sec[2];
+    $('#screen').setAttribute('aria-label', 'Екран Nanit: ' + SC_WHAT.map(([id]) => r[id][0].trim()).join(', '));
+  }
+
+  function buildScreenRows() {
+    const dl = $('#sc-rows');
+    SC_WHAT.forEach(([id, name, what]) => {
+      const d = document.createElement('div');
+      d.innerHTML = '<dt></dt><dd></dd>';
+      d.querySelector('dt').textContent = name;
+      d.querySelector('dd').textContent = what;
+      dl.appendChild(d);
+    });
+  }
+
+  /* ---------- схема макета ---------- */
+  /* Зони схеми: дах видно з обох боків, решта — лише зі свого.
+     Порядок стін по колу: паркінг → вікно → вхід → контролер. */
+  const ZONE_SIDE = {
+    co:'both', dht:'both', ldr:'both', sound:'both',
+    tl:'a', gate:'a', car:'a', seg:'a', fan:'a', window:'a',
+    light:'b', pir:'b', kbd:'b', buz:'b', scr:'b'
+  };
+  const ZONE_NAME = {
+    co:'Чадний газ', dht:'Клімат', ldr:'Освітленість', sound:'Датчик звуку',
+    tl:'Світлофор', gate:'Шлагбаум', car:'Далекомір', seg:'Дисплей паркінгу',
+    fan:'Вентиляція', window:'Датчик вікна', light:'Світло', pir:'Датчик руху',
+    kbd:'Клавіатура', buz:'Зумер', scr:'Екран Nanit'
+  };
+  let planSide = 'a';
+
+  function zoneState(id, t) {
+    const mode = st.sec === 'exit' ? st.pending : st.sec === 'entry' ? st.entryFrom : st.sec === 'alarm' ? st.alarmFrom : st.sec;
+    const mon = monitored(mode);
+    if (id in SENSOR) {
+      let s = mon.includes(id) ? 'on' : 'off';
+      if (t - st.at[id] < 2500) s = mon.includes(id) && st.sec !== 'exit' ? 'hit' : 'seen';
+      if ((st.sec === 'alarm' || st.sec === 'entry') && st.trigger === id) s = 'hit';
+      const v = id === 'window' ? (st.win.blocked ? 'перешкода' : 'вільно') : (s === 'hit' || s === 'seen' ? 'спрацював' : mon.includes(id) ? 'під охороною' : 'не контролюється');
+      return { s, v };
+    }
+    const d = reading();
+    switch (id) {
+      case 'co': return { s: st.coAlarm ? 'hit' : st.co >= cfg.coWarn ? 'act' : 'on', v: st.co + ' / 100' };
+      case 'dht': return { s: 'on', v: st.temp + ' °C · ' + st.hum + ' %' };
+      case 'ldr': return { s: 'on', v: st.bright ? 'світло' : 'темно' };
+      case 'gate': return { s: gateOpenish(st.gate) ? 'act' : 'off',
+        v: { closed:'зачинено', opening:'відкривається', open:'відкрито', closing:'зачиняється' }[st.gate.pos] };
+      case 'car': return { s: st.car.phase !== 'none' ? 'act' : 'off', v: d === null ? 'немає даних' : d + ' см' };
+      case 'seg': return { s: 'off', v: segText() };
+      case 'tl': return { s: 'off', v: { r:'червоний', y:'жовтий', g:'зелений' }[st.tlNow || 'r'] };
+      case 'fan': return { s: st.fan.on ? 'act' : 'off', v: st.fan.on ? 'працює' : 'вимкнено' };
+      case 'light': return { s: st.light.on ? 'act' : 'off', v: st.light.on ? 'увімкнено · ' + st.light.level + '%' : 'вимкнено' };
+      case 'buz': return { s: st.sec === 'alarm' || (st.coAlarm && !st.coMuted) ? 'hit' : 'off',
+        v: st.sec === 'alarm' || (st.coAlarm && !st.coMuted) ? 'сирена' : 'мовчить' };
+      case 'kbd': return { s: pinBuf.length ? 'act' : 'off', v: pinBuf.length ? 'вводиться код' : 'очікує код' };
+      default: return { s: 'off', v: st.service ? 'сервісний режим' : 'огляд' };
+    }
+  }
+
+  function planFlip(to) {
+    planSide = to;
+    $('#flip').classList.toggle('flipped', to === 'b');
+    $$('.side-btn').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.side === to)));
+    setText($('#side-note'), to === 'a' ? 'паркінг і вікно' : 'охорона і контролер');
+    $$('.face').forEach(f => {
+      const off = f.classList.contains(to === 'a' ? 'b' : 'a');
+      f.setAttribute('aria-hidden', String(off));
+      f.querySelectorAll('.hot').forEach(h => h.setAttribute('tabindex', off ? '-1' : '0'));
+    });
+    renderPlan(now());
+  }
+
+  function planFlash(el) {
+    el.classList.remove('flash');
+    void el.getBoundingClientRect();   // перезапуск анімації, якщо клікнули двічі поспіль
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1600);
+  }
+
+  function renderPlan(t) {
+    const visible = id => ZONE_SIDE[id] === 'both' || ZONE_SIDE[id] === planSide;
+    let otherAct = [], otherHit = false;
+    for (const id of Object.keys(ZONE_SIDE)) {
+      const { s, v } = zoneState(id, t);
+      if (!visible(id) && (s === 'act' || s === 'hit' || s === 'seen')) {
+        otherAct.push(ZONE_NAME[id]);
+        if (s === 'hit') otherHit = true;
+      }
+      $$('[data-zone="' + id + '"]').forEach(el => {
+        const cls = s === 'on' ? 's-on' : s === 'act' ? 's-act' : s === 'seen' ? 's-seen' : s === 'hit' ? 's-hit' : '';
+        el.classList.remove('s-on','s-act','s-seen','s-hit');
+        if (cls) el.classList.add(cls);
+        el.setAttribute('aria-label', ZONE_NAME[id] + ': ' + v);
+        let ttl = el.querySelector(':scope > title');
+        if (!ttl) { ttl = document.createElementNS('http://www.w3.org/2000/svg', 'title'); el.insertBefore(ttl, el.firstChild); }
+        if (ttl.textContent !== ZONE_NAME[id] + ' — ' + v) ttl.textContent = ZONE_NAME[id] + ' — ' + v;
+      });
+    }
+    // на кнопці прихованого боку видно, скільки там активного
+    const badge = $('#badge');
+    const host = $('.side-btn[data-side="' + (planSide === 'a' ? 'b' : 'a') + '"]');
+    if (otherAct.length) {
+      badge.hidden = false;
+      setText(badge, String(otherAct.length));
+      badge.classList.toggle('hit', otherHit);
+      badge.title = otherAct.join(', ');
+      if (badge.parentElement !== host) host.appendChild(badge);
+    } else badge.hidden = true;
+
+    $('#i-bar').style.transform = gateOpenish(st.gate) ? 'rotate(-52deg)' : 'rotate(0deg)';
+    const w = st.win;
+    $('#i-shade').style.transform = 'translate(' + (-w.pos / 100 * 50).toFixed(1) + 'px,' + (-w.pos / 100 * 25).toFixed(1) + 'px)';
+    $('#i-fan').classList.toggle('spinning', st.fan.on);
+    const tl = st.tlNow || 'r';
+    $('#i-tr').setAttribute('fill', tl === 'r' ? 'var(--tl-red)' : 'var(--tl-off)');
+    $('#i-ty').setAttribute('fill', tl === 'y' ? 'var(--tl-yellow)' : 'var(--tl-off)');
+    $('#i-tg').setAttribute('fill', tl === 'g' ? 'var(--tl-green)' : 'var(--tl-off)');
+    setText($('#i-seg'), segText().replace(/ /g, ''));
+    $('#i-glow').setAttribute('fill', st.sec === 'alarm' ? 'var(--crit)' : lightColor());
+    $('#i-glow').setAttribute('opacity', st.light.on ? (0.25 + st.light.level / 100 * 0.45).toFixed(2) : '.12');
+  }
+
+  function pill(el, level, text) { const c = 'pill ' + level; if (el.className !== c) el.className = c; setText(el, text); }
+  function spark(el, arr) {
+    const lo = Math.min(...arr) - 1, hi = Math.max(...arr) + 1, n = arr.length;
+    const y = v => (38 - (v - lo) / (hi - lo) * 34).toFixed(2);
+    const pts = arr.map((v, i) => `${(i / (n - 1) * 120).toFixed(2)},${y(v)}`);
+    el.innerHTML = `<svg viewBox="0 0 120 42" preserveAspectRatio="none" aria-hidden="true"><line class="gl" x1="0" x2="120" y1="${y(Math.max(...arr))}" y2="${y(Math.max(...arr))}"/><line class="gl" x1="0" x2="120" y1="${y(Math.min(...arr))}" y2="${y(Math.min(...arr))}"/><path class="ar" d="M${pts.join(' L')} L120,42 L0,42 Z"/><path class="ln" d="M${pts.join(' L')}"/></svg><span class="end" style="top:${(y(arr[n - 1]) / 42 * 100).toFixed(1)}%"></span>`;
+  }
+  const range = (arr, unit) => { const a = Math.min(...arr), b = Math.max(...arr); return a === b ? `10 хв: стабільно ${a}${unit}` : `10 хв: ${a}–${b}${unit}`; };
+  let histDrawn = -1;
+  function renderClimate() {
+    setText($('#temp-val'), st.temp); setText($('#hum-val'), st.hum); setText($('#co-val'), st.co);
+    const tp = $('#temp-pill');
+    if (st.temp >= cfg.fanOn) pill(tp, 'warn', 'Жарко'); else if (st.temp < 18) pill(tp, 'warn', 'Прохолодно'); else pill(tp, 'ok', 'Комфортно');
+    const hp = $('#hum-pill');
+    if (st.hum >= cfg.humOn) pill(hp, 'warn', 'Волого'); else if (st.hum < 30) pill(hp, 'warn', 'Сухо'); else pill(hp, 'ok', 'Комфортно');
+    const cp = $('#co-pill');
+    if (st.co >= cfg.coDanger) pill(cp, 'crit', 'Небезпечно'); else if (st.co >= cfg.coWarn) pill(cp, 'warn', 'Підвищений'); else pill(cp, 'ok', 'Норма');
+    if (histDrawn !== st.histVer) {
+      histDrawn = st.histVer;
+      spark($('#temp-spark'), st.hist.temp); spark($('#hum-spark'), st.hist.hum); spark($('#co-spark'), st.hist.co);
+      setText($('#temp-range'), range(st.hist.temp, ' °C'));
+      setText($('#hum-range'), range(st.hist.hum, '%'));
+      setText($('#co-range'), 'Відносний показник MQ-7, не ppm');
+    }
+  }
+
+  function note(el, text, level = '') { setText(el, text); const c = 'dev-note' + (level ? ' ' + level : ''); if (el.className !== c) el.className = c; }
+  function radios(name, value, disabled = false) { $$(`input[name="${name}"]`).forEach(i => { i.checked = i.value === value; i.disabled = disabled; }); }
+  function renderFan() {
+    const f = st.fan;
+    setText($('#fan-state'), f.on ? 'Працює' : 'Вимкнено');
+    $('#fan-icon').classList.toggle('on', f.on); $('#fan-icon').classList.toggle('spin', f.on);
+    note($('#fan-note'), f.why, st.coAlarm ? 'crit' : st.service ? 'warn' : '');
+    radios('fan-mode', f.mode, st.coAlarm || st.service);
+  }
+  function renderWindow() {
+    const w = st.win, forced = st.coAlarm || st.sec !== 'disarmed' || st.service;
+    const moving = w.pos !== w.target && !w.blocked;
+    setText($('#win-state'), (w.pos === 0 ? 'Зачинено' : w.pos === 100 ? 'Відкрито' : `Відкрито на ${w.pos}%`) + (moving ? ' · рухається' : ''));
+    $('#win-icon').classList.toggle('on', w.pos > 0);
+    if (w.blocked) note($('#win-note'), 'Біля вікна перешкода: штора чекає, доки звільниться місце', 'warn');
+    else note($('#win-note'), w.why, st.coAlarm ? 'crit' : st.service ? 'warn' : '');
+    radios('win-mode', w.mode, forced);
+    const r = $('#win-range'); r.disabled = forced;
+    if (document.activeElement !== r) r.value = w.mode === 'manual' ? w.manual : w.target;
+    setText($('#win-out'), r.value + '%');
+  }
+  function renderGate() {
+    const g = st.gate, d = reading(), locked = LOCKED.includes(st.sec);
+    setText($('#gate-state'), { closed: 'Зачинено', opening: 'Відкривається…', open: 'Відкрито', closing: 'Зачиняється…' }[g.pos]);
+    $('#gate-icon').classList.toggle('on', gateOpenish(g));
+    setText($('#gate-dist'), d === null ? 'немає даних' : `${d} см`);
+    drawSeg(segText());
+    const moving = g.pos === 'opening' || g.pos === 'closing';
+    let tl = g.pos === 'closed' ? 'r' : moving ? 'y' : 'g';
+    if (now() < st.test.tlUntil) tl = st.test.tl;
+    st.tlNow = tl;
+    $('#tl-r').classList.toggle('on', tl === 'r');
+    $('#tl-y').classList.toggle('on', tl === 'y');
+    $('#tl-g').classList.toggle('on', tl === 'g');
+    seg7.style.opacity = (0.35 + HWM.tm1637.val.br / 7 * 0.65).toFixed(2);
+    if (st.service) note($('#gate-note'), 'Сервісний режим: автоматика шлагбаума на паузі', 'warn');
+    else if (locked) note($('#gate-note'), 'Заблоковано: будинок під охороною');
+    else if (d === null && g.mode === 'auto') note($('#gate-note'), 'Далекомір не отримує відлуння. Автоматика шлагбаума на паузі', 'warn');
+    else if (g.mode === 'auto') note($('#gate-note'), `Авто: відкриється, коли машина ближче ${cfg.openDist} см; зачиниться через ${cfg.closeDelay} с після від’їзду`);
+    else note($('#gate-note'), g.mode === 'open' ? 'Вручну: тримати відкритим' : 'Вручну: тримати зачиненим');
+    radios('gate-mode', g.mode, locked || st.service);
+  }
+  const lightColor = () => (st.service && st.test.lightColor) ? st.test.lightColor : st.light.color;
+  const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`; };
+  function renderLight(t) {
+    const L = st.light, alarm = st.sec === 'alarm';
+    setText($('#light-state'), L.on ? (alarm ? 'Тривога' : `Увімкнено · ${L.level}%`) : 'Вимкнено');
+    const ic = $('#light-icon');
+    const bg = !L.on ? '' : alarm ? (tickN % 2 ? '#FF3B30' : '') : hexA(lightColor(), 0.35 + L.level / 100 * 0.65);
+    if (ic.style.background !== bg) ic.style.background = bg;
+    ic.style.color = L.on ? '#16201B' : '';
+    const locked = alarm || st.service;
+    note($('#light-note'), L.why, alarm ? 'crit' : st.service ? 'warn' : '');
+    radios('light-mode', L.mode, locked);
+    $$('input[name="light-color"]').forEach(i => { i.checked = i.value === L.color; i.disabled = locked; });
+    const r = $('#light-range'); r.disabled = locked;
+    if (document.activeElement !== r) r.value = L.level;
+    setText($('#light-out'), r.value + '%');
+  }
+
+  const logItem = e => `<li class="log-item lv-${e.level}"><time datetime="${new Date(e.t).toISOString()}">${hhmmss(e.t)}</time><div class="log-body"><span class="tag">${CAT[e.cat]}</span><span class="txt">${esc(e.text)}</span></div></li>`;
+  let logDrawn = -1, filterDrawn = '';
+  function renderLogs() {
+    const f = ($('input[name="lf"]:checked') || {}).value || 'all';
+    if (logDrawn === st.logVer && filterDrawn === f) return;
+    logDrawn = st.logVer; filterDrawn = f;
+    $('#log-recent').innerHTML = st.log.slice(0, 5).map(logItem).join('');
+    const items = st.log.filter(e => f === 'all' || e.cat === f);
+    $('#log-full').innerHTML = items.length ? items.map(logItem).join('') : '<li class="empty">Подій цього типу ще не було.</li>';
+  }
+  $$('input[name="lf"]').forEach(i => i.addEventListener('change', renderLogs));
+
+  let bannerKey = '';
+  function renderBanners() {
+    const items = [];
+    if (!st.online) items.push(['warn', `Немає зв’язку з Nanit з ${hhmmss(st.lastSeen)}. Показано останні отримані дані, будинок працює автономно.`, '']);
+    if (st.coAlarm) items.push(['crit', 'Небезпечний рівень CO. Вентиляцію ввімкнено, штору відкрито.', st.coMuted ? '' : 'mute']);
+    if (st.sec === 'alarm' && st.view !== 'home') items.push(['crit', `Тривога: спрацював ${SENSOR[st.trigger]}.`, 'home']);
+    if (st.service && st.view !== 'hw') items.push(['warn', 'Сервісний режим: автоматика на паузі, охорона недоступна.', 'svc']);
+    const key = JSON.stringify(items);
+    if (key === bannerKey) return; bannerKey = key;
+    $('#banners').innerHTML = items.map(([lv, txt, act]) => `<div class="banner ${lv}" role="alert"><span>${esc(txt)}</span>${
+      act === 'mute' ? '<button type="button" class="btn" data-banner="mute">Вимкнути звук</button>'
+      : act === 'home' ? '<button type="button" class="btn" data-banner="home">Відкрити огляд</button>'
+      : act === 'svc' ? '<button type="button" class="btn" data-banner="svc">Вимкнути</button>' : ''}</div>`).join('');
+  }
+  function renderHeader(t) {
+    const chip = $('#chip-link');
+    chip.dataset.state = st.online ? 'on' : 'off';
+    setText($('#chip-link-text'), st.online ? 'Nanit' : 'Nanit офлайн');
+    setText($('#chip-clock'), hhmm(t));
+    $('#chip-svc').hidden = !st.service;
+    if (st.service) setText($('#chip-svc-t'), mmss(st.serviceUntil - t));
+  }
+  const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
+  function renderDemo() {
+    const b = (id, pressed, text) => { const el = $(id); el.setAttribute('aria-pressed', pressed); setText(el, text); };
+    b('#sim-light', !st.ambient, st.ambient ? 'Стемніло' : 'Розвиднілось');
+    b('#sim-car', st.car.phase === 'arriving' || st.car.phase === 'parked', (st.car.phase === 'arriving' || st.car.phase === 'parked') ? 'Машина від’їжджає' : 'Під’їхала машина');
+    b('#sim-echo', st.noEcho, 'Далекомір без відлуння');
+    b('#sim-co', st.coHigh, st.coHigh ? 'Провітрено, CO знижується' : 'Підняти рівень CO');
+    b('#sim-link', !st.online, st.online ? 'Обірвати зв’язок з Nanit' : 'Відновити зв’язок');
+    $$('#demo button').forEach(el => { if (el.id !== 'sim-link') el.disabled = !st.online; });
+  }
+  function renderSystem(t) {
+    const s = Math.floor((t - st.bootAt) / 1000);
+    setText($('#sys-uptime'), `${Math.floor(s / 3600)} год ${Math.floor(s / 60) % 60} хв`);
+  }
+
+  function render() {
+    const t = now();
+    renderHeader(t); renderBanners();
+    $('#controls').disabled = !st.online;
+    renderHero(t); renderPlan(t); renderScreen(t); renderClimate();
+    renderFan(); renderWindow(); renderGate(); renderLight(t);
+    renderLogs(); renderDemo(); renderSystem(t); renderHw(t);
+    if (pinDlg.open) renderPinLock(t);
+  }
+
+  /* ---------- toast ---------- */
+  let toastTimer;
+  function toast(msg) {
+    const el = $('#toast'); el.textContent = msg; el.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 3400);
+  }
+
+  /* ---------- навігація ---------- */
+  function show(view) {
+    st.view = view;
+    $$('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== view; });
+    $$('.topnav [data-view], .tabbar [data-view]').forEach(b => b.setAttribute('aria-current', b.dataset.view === view ? 'page' : 'false'));
+    try { localStorage.setItem('zh-view', view); } catch (e) {}
+    window.scrollTo(0, 0);
+    renderBanners();
+  }
+  document.addEventListener('click', e => {
+    const v = e.target.closest('[data-view]'); if (v) show(v.dataset.view);
+  });
+
+  /* ---------- код охорони ---------- */
+  const pinDlg = $('#pin-dlg');
+  function renderPin() {
+    const n = Math.max(4, pinBuf.length);
+    $('#pin-dots').innerHTML = Array.from({ length: n }, (_, i) => `<i class="${i < pinBuf.length ? 'f' : ''}"></i>`).join('');
+  }
+  function pinMsg(m) { setText($('#pin-msg'), m); }
+  function renderPinLock(t) {
+    if (st.lockUntil > t) pinMsg(`Введення заблоковано ще на ${Math.ceil((st.lockUntil - t) / 1000)} с`);
+    else if ($('#pin-msg').textContent.startsWith('Введення заблоковано')) pinMsg('');
+  }
+  function askPin(title, action) {
+    pinBuf = ''; pinAction = action; setText($('#pin-title'), title); pinMsg(''); renderPin();
+    pinDlg.showModal(); renderPinLock(now());
+  }
+  function pinSubmit() {
+    const t = now();
+    if (st.lockUntil > t) { renderPinLock(t); return; }
+    if (pinBuf.length < 4) { pinMsg('Код має 4–6 цифр'); return; }
+    if (pinBuf === PIN) { st.wrong = 0; pinDlg.close(); const a = pinAction; pinAction = null; if (a) a(); render(); return; }
+    st.wrong++; pinBuf = ''; renderPin();
+    const box = $('#pin-box'); box.classList.remove('shake'); void box.offsetWidth; box.classList.add('shake');
+    if (st.wrong >= 3) {
+      st.wrong = 0; st.lockUntil = t + 60000;
+      log('security', 'Три невірні коди поспіль: введення заблоковано на 60 с', 'warn');
+      renderPinLock(t);
+    } else {
+      log('security', `Невірний код у вебінтерфейсі (${st.wrong} з 3)`, 'warn');
+      pinMsg(`Невірний код. Залишилось спроб: ${3 - st.wrong}`);
+    }
+  }
+  function pinKey(k) {
+    if (k === '#') return pinSubmit();
+    if (k === '*') pinBuf = '';
+    else if (pinBuf.length < 6) pinBuf += k;
+    renderPin();
+  }
+  $('#keypad').addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (b) pinKey(b.dataset.key); });
+  pinDlg.addEventListener('keydown', e => {
+    if (/^[0-9]$/.test(e.key)) { e.preventDefault(); pinKey(e.key); }
+    else if (e.key === 'Backspace') { e.preventDefault(); pinBuf = pinBuf.slice(0, -1); renderPin(); }
+    else if (e.key === 'Enter') { e.preventDefault(); pinSubmit(); }
+  });
+  $('#pin-close').addEventListener('click', () => pinDlg.close());
+
+  /* ---------- дії охорони та сцени ---------- */
+  function doArm(mode, by, after) {
+    if (st.service) { toast('Спершу вимкніть сервісний режим на сторінці «Обладнання»'); return; }
+    const go =() => { if (arm(mode, by)) { if (after) after(); toast(`${mode === 'night' ? 'Нічний режим' : 'Охорона'}: ${cfg.exitDelay} с, щоб вийти`); } render(); };
+    cfg.quickArm ? go() : askPin(mode === 'night' ? 'Нічний режим' : 'Поставити на охорону', go);
+  }
+  $('#sec-actions').addEventListener('click', e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const a = b.dataset.act;
+    if (a === 'arm') doArm('armed', 'вебінтерфейс');
+    else if (a === 'night') doArm('night', 'вебінтерфейс');
+    else if (a === 'disarm') askPin('Зняти з охорони', () => { disarm('вебінтерфейс'); toast('Охорону знято'); });
+    else if (a === 'cancel') askPin('Скасувати постановку', () => { disarm('вебінтерфейс'); toast('Постановку скасовано'); });
+  });
+  $$('.side-btn').forEach(b => b.addEventListener('click', () => planFlip(b.dataset.side)));
+  $$('.hot').forEach(g => {
+    const act = () => { planFlash(g); toast(ZONE_NAME[g.dataset.zone] + ' — ' + zoneState(g.dataset.zone, now()).v); };
+    g.addEventListener('click', act);
+    g.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
+  });
+
+  $$('.scene').forEach(b => b.addEventListener('click', () => {
+    const s = b.dataset.scene;
+    if (s === 'away' || s === 'night') {
+      if (st.sec !== 'disarmed') { toast('Будинок уже під охороною'); return; }
+      doArm(s === 'away' ? 'armed' : 'night', s === 'away' ? 'сцена «Я пішов»' : 'сцена «Ніч»', () => { st.light.mode = 'off'; st.fan.mode = 'auto'; st.gate.mode = 'auto'; });
+    } else {
+      const apply = () => { st.light.mode = 'auto'; st.win.mode = 'auto'; st.gate.mode = 'auto'; toast('Сцена «Я вдома» застосована'); render(); };
+      if (st.sec === 'disarmed') apply();
+      else askPin('Сцена «Я вдома»', () => { disarm('сцена «Я вдома»'); apply(); });
+    }
+  }));
+
+  /* ---------- пристрої ---------- */
+  const MODE_TXT = { auto: 'авто', on: 'увімкнено', off: 'вимкнено', manual: 'вручну', open: 'відкрити', close: 'зачинити' };
+  $$('input[name="fan-mode"]').forEach(i => i.addEventListener('change', () => { st.fan.mode = i.value; log('climate', `Вентиляція: ${MODE_TXT[i.value]} (вебінтерфейс)`); render(); }));
+  $$('input[name="win-mode"]').forEach(i => i.addEventListener('change', () => { st.win.mode = i.value; render(); }));
+  $('#win-range').addEventListener('input', e => { st.win.manual = +e.target.value; st.win.mode = 'manual'; setText($('#win-out'), e.target.value + '%'); });
+  $('#win-range').addEventListener('change', () => { log('climate', `Штору встановлено на ${st.win.manual}% (вебінтерфейс)`); render(); });
+  $$('input[name="gate-mode"]').forEach(i => i.addEventListener('change', () => { st.gate.mode = i.value; log('parking', `Шлагбаум: ${MODE_TXT[i.value]} (вебінтерфейс)`); render(); }));
+  $$('input[name="light-mode"]').forEach(i => i.addEventListener('change', () => { st.light.mode = i.value; render(); }));
+  $('#swatches').innerHTML = COLORS.map(([c, n], i) => `<input type="radio" name="light-color" id="lc-${i}" value="${c}"><label for="lc-${i}" style="background:${c}" title="${n}" aria-label="${n}"></label>`).join('');
+  $$('input[name="light-color"]').forEach(i => i.addEventListener('change', () => { st.light.color = i.value; render(); }));
+  $('#light-range').addEventListener('input', e => { st.light.level = +e.target.value; setText($('#light-out'), e.target.value + '%'); });
+
+  /* ---------- банери й імітація ---------- */
+  $('#banners').addEventListener('click', e => {
+    const b = e.target.closest('[data-banner]'); if (!b) return;
+    if (b.dataset.banner === 'mute') { st.coMuted = true; log('climate', 'Звук тривоги CO вимкнено (вебінтерфейс)'); toast('Звук вимкнено. Вентиляція працює далі'); }
+    else if (b.dataset.banner === 'svc') setService(false, 'вебінтерфейс');
+    else show('home');
+    render();
+  });
+  $('#demo').addEventListener('click', e => {
+    const b = e.target.closest('[data-sim]'); if (!b) return;
+    const k = b.dataset.sim;
+    if (k === 'pir' || k === 'sound' || k === 'window') trigger(k);
+    else if (k === 'light') { st.ambient = !st.ambient; stepLdr(); }
+    else if (k === 'car') {
+      const c = st.car;
+      if (c.phase === 'arriving' || c.phase === 'parked') c.phase = 'leaving';
+      else { c.phase = 'arriving'; c.dist = 45; }
+    }
+    else if (k === 'echo') { st.noEcho = !st.noEcho; if (st.noEcho) log('parking', 'Далекомір не отримує відлуння', 'warn'); }
+    else if (k === 'co') st.coHigh = !st.coHigh;
+    else if (k === 'link') {
+      st.online = !st.online;
+      log('system', st.online ? 'Зв’язок з Nanit відновлено' : 'Nanit не відповідає понад 3 с', st.online ? 'info' : 'warn');
+    }
+    render();
+  });
+
+  /* ---------- налаштування ---------- */
+  function fillSettings() {
+    const v = (id, x) => { $(id).value = x; };
+    v('#s-fan-on', cfg.fanOn); v('#s-fan-off', cfg.fanOff); v('#s-hum-on', cfg.humOn); v('#s-co-warn', cfg.coWarn); v('#s-co-danger', cfg.coDanger);
+    v('#s-open-dist', cfg.openDist); v('#s-close-delay', cfg.closeDelay); v('#s-stop-dist', cfg.stopDist);
+    v('#s-exit', cfg.exitDelay); v('#s-entry', cfg.entryDelay); v('#s-siren', cfg.siren);
+    for (const m of ['armed', 'night']) for (const k of Object.keys(SENSOR)) $(`#s-${m}-${k}`).checked = cfg[m][k];
+    $('#s-quick-arm').checked = cfg.quickArm;
+    renderCoHints();
+  }
+
+  /* Відсоток CO рахується від «чистого повітря»: (raw − base)·100/(1023 − base).
+     Показуємо зворотний переклад, щоб було видно, чи поріг узагалі досяжний. */
+  function coAdc(pct) {
+    const base = Math.min(HWM.mq7.val.base, 1000);
+    return Math.round(base + pct * (1023 - base) / 100);
+  }
+  function renderCoHints() {
+    const w = Number($('#s-co-warn').value), d = Number($('#s-co-danger').value);
+    setText($('#co-warn-adc'), Number.isFinite(w) && w ? `Спрацює на сирому АЦП ≈ ${coAdc(w)}` : '');
+    setText($('#co-danger-adc'), Number.isFinite(d) && d
+      ? `Тривога навіть без охорони · сире АЦП ≈ ${coAdc(d)}`
+      : 'Вмикає тривогу навіть без охорони');
+  }
+  ['#s-co-warn', '#s-co-danger'].forEach(id => $(id).addEventListener('input', renderCoHints));
+
+  function formMsg(form, text, err) { const m = $('.form-msg', form); m.textContent = text; m.className = 'form-msg ' + (err ? 'err' : 'ok'); }
+  function saveGuard(form) { if (!st.online) { formMsg(form, 'Nanit не на зв’язку, тому налаштування не збережено.', true); return false; } return true; }
+  $('#f-climate').addEventListener('submit', e => {
+    e.preventDefault(); const f = e.currentTarget; if (!saveGuard(f)) return;
+    const on = +$('#s-fan-on').value, off = +$('#s-fan-off').value, w = +$('#s-co-warn').value, d = +$('#s-co-danger').value;
+    if (off >= on) return formMsg(f, 'Температура вимкнення має бути нижчою за температуру ввімкнення.', true);
+    if (w >= d) return formMsg(f, 'Поріг «небезпечний» має бути вищим за «підвищений».', true);
+    Object.assign(cfg, { fanOn: on, fanOff: off, humOn: +$('#s-hum-on').value, coWarn: w, coDanger: d });
+    formMsg(f, 'Збережено на Nanit.', false); log('system', 'Змінено налаштування клімату'); render();
+  });
+  $('#f-parking').addEventListener('submit', e => {
+    e.preventDefault(); const f = e.currentTarget; if (!saveGuard(f)) return;
+    const o = +$('#s-open-dist').value, s = +$('#s-stop-dist').value;
+    if (s >= o) return formMsg(f, '«StOP» має спрацьовувати ближче, ніж відкривається шлагбаум.', true);
+    Object.assign(cfg, { openDist: o, closeDelay: +$('#s-close-delay').value, stopDist: s });
+    formMsg(f, 'Збережено на Nanit.', false); log('system', 'Змінено налаштування паркінгу'); render();
+  });
+  $('#f-security').addEventListener('submit', e => {
+    e.preventDefault(); const f = e.currentTarget; if (!saveGuard(f)) return;
+    const pick = m => Object.fromEntries(Object.keys(SENSOR).map(k => [k, $(`#s-${m}-${k}`).checked]));
+    const armed = pick('armed'), night = pick('night');
+    if (!Object.values(armed).some(Boolean)) return formMsg(f, 'Режим «Під охороною» має контролювати хоча б один датчик.', true);
+    Object.assign(cfg, { exitDelay: +$('#s-exit').value, entryDelay: +$('#s-entry').value, siren: +$('#s-siren').value, armed, night, quickArm: $('#s-quick-arm').checked });
+    formMsg(f, 'Збережено на Nanit.', false); log('system', 'Змінено налаштування охорони'); render();
+  });
+  $('#pin-save').addEventListener('click', () => {
+    const m = $('#pin-save-msg'); const say = (t, err) => { m.textContent = t; m.className = 'form-msg ' + (err ? 'err' : 'ok'); };
+    if (!st.online) return say('Nanit не на зв’язку, тому код не змінено.', true);
+    const o = $('#s-pin-old').value, n = $('#s-pin-new').value, r = $('#s-pin-rep').value;
+    if (o !== PIN) return say('Поточний код невірний.', true);
+    if (!/^\d{4,6}$/.test(n)) return say('Новий код має складатися з 4–6 цифр.', true);
+    if (n !== r) return say('Коди не збігаються.', true);
+    PIN = n; ['#s-pin-old', '#s-pin-new', '#s-pin-rep'].forEach(id => { $(id).value = ''; });
+    say('Код змінено. Він уже діє на клавіатурі будинку.', false); log('security', 'Код охорони змінено (вебінтерфейс)'); render();
+  });
+
+  /* ---------- Wi-Fi ---------- */
+  const NETS = [
+    { ssid: 'Zhuk_WiFi', rssi: -58, lock: true, cur: true },
+    { ssid: 'Zhuk_Guest', rssi: -63, lock: false },
+    { ssid: 'HomeNet_2G', rssi: -74, lock: true },
+    { ssid: 'Kyivstar-3F2A', rssi: -81, lock: true }
+  ];
+  const bars = r => { const n = r > -60 ? 4 : r > -70 ? 3 : r > -80 ? 2 : 1; return `<span class="bars" aria-label="${r} дБм">${[5, 8, 11, 14].map((h, i) => `<i class="${i < n ? 'on' : ''}" style="height:${h}px"></i>`).join('')}</span>`; };
+  const wifiDlg = $('#wifi-dlg');
+  $('#wifi-change').addEventListener('click', () => {
+    $('#nets').innerHTML = NETS.map((n, i) => `<label class="net"><input type="radio" name="net" value="${i}"${n.cur ? ' checked' : ''}><span class="net-name">${esc(n.ssid)}</span><span class="small muted">${n.cur ? 'підключено' : n.lock ? 'з паролем' : 'відкрита'}</span>${bars(n.rssi)}</label>`).join('');
+    $('#wifi-pass').value = ''; $('#wifi-msg').textContent = '';
+    wifiDlg.showModal();
+  });
+  $('#wifi-cancel').addEventListener('click', () => wifiDlg.close());
+  $('#wifi-connect').addEventListener('click', () => {
+    const sel = $('input[name="net"]:checked'); const msg = $('#wifi-msg');
+    if (!sel) { msg.textContent = 'Оберіть мережу.'; return; }
+    const n = NETS[+sel.value];
+    if (n.cur) { msg.textContent = 'ESP уже підключений до цієї мережі.'; return; }
+    if (n.lock && $('#wifi-pass').value.length < 8) { msg.textContent = 'Пароль Wi-Fi має щонайменше 8 символів.'; return; }
+    wifiDlg.close();
+    log('system', `Wi-Fi: перепідключення до «${n.ssid}» (вебінтерфейс)`);
+    toast(`ESP підключається до «${n.ssid}». Сторінка знову буде за адресою zhukhome.local`);
+    render();
+  });
+
+  /* ---------- система ---------- */
+  $('#sys-ota-file').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    toast(`Обрано «${f.name}» (${Math.round(f.size / 1024)} КБ). У прототипі оновлення не виконується`);
+    e.target.value = '';
+  });
+  $('#sys-reboot').addEventListener('click', () => toast('У прототипі перезавантаження не виконується'));
+  $('#sys-reset').addEventListener('click', () => toast('Після скидання ESP підніме точку доступу «ZhukHome-Setup»'));
+
+  /* ---------- сервісний режим ---------- */
+  function setService(on, by) {
+    if (on === st.service) return;
+    if (on) {
+      if (st.sec !== 'disarmed') { toast('Спершу зніміть охорону'); return; }
+      if (!st.online) { toast('Nanit не на зв’язку'); return; }
+      st.service = true; st.serviceUntil = now() + 600000;
+      log('system', 'Сервісний режим увімкнено: автоматика на паузі', 'warn');
+    } else {
+      st.service = false; st.test.fanUntil = 0; st.test.lightUntil = 0; st.test.tlUntil = 0;
+      log('system', `Сервісний режим вимкнено (${by}): автоматика працює`);
+    }
+    render();
+  }
+
+  /* ---------- зумер у браузері (лише прототип) ---------- */
+  let actx = null;
+  function sound(kind) {
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    if (actx.state === 'suspended') actx.resume();
+    const t0 = actx.currentTime, g = actx.createGain(), o = actx.createOscillator();
+    o.type = 'square'; g.gain.value = 0.035; o.connect(g); g.connect(actx.destination);
+    if (kind === 'beep') { o.frequency.setValueAtTime(HWM.buzzer.val.tone, t0); o.start(t0); o.stop(t0 + 0.09); }
+    else if (kind === 'melody') { [1047, 1319, 1568].forEach((f, i) => o.frequency.setValueAtTime(f, t0 + i * 0.13)); o.start(t0); o.stop(t0 + 0.42); }
+    else { o.frequency.setValueAtTime(600, t0); o.frequency.linearRampToValueAtTime(1400, t0 + 0.5); o.frequency.linearRampToValueAtTime(600, t0 + 1); o.start(t0); o.stop(t0 + 1); }
+  }
+
+  /* ---------- сторінка «Обладнання» ---------- */
+  const modules = k => k === 1 ? '1 модуль' : k < 5 ? `${k} модулі` : `${k} модулів`;
+  const dec = x => String(x).replace('.', ',');
+  const CHEV = '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+  const SVC_HINT = '<p class="svc-hint" data-svc-hint>Потрібен сервісний режим: увімкніть його вгорі сторінки.</p>';
+  function fieldHTML(c, f) {
+    const id = `cal-${c.id}-${f.k}`, v = c.val[f.k];
+    if (f.type === 'check') return `<label class="check field-wide"><input type="checkbox" id="${id}"${v ? ' checked' : ''}>${f.label}</label>`;
+    if (f.type === 'select') return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${f.options.map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select></div>`;
+    if (f.type === 'range') return `<div class="field field-wide"><label for="${id}">${f.label}</label><div class="range-row bare"><input type="range" id="${id}" min="${f.min}" max="${f.max}" value="${v}"><output for="${id}" class="num">${v}</output></div></div>`;
+    return `<div class="field"><label for="${id}">${f.label}</label><div class="input-unit"><input type="number" id="${id}" min="${f.min}" max="${f.max}" value="${v}">${f.unit ? `<span>${f.unit}</span>` : ''}</div>${f.hint ? `<span class="hint">${f.hint}</span>` : ''}</div>`;
+  }
+  function testHTML(c) {
+    const B = (act, label) => `<button type="button" class="btn sm" data-t="${c.id}:${act}">${label}</button>`;
+    const row = (...b) => `<div class="test-row">${b.join('')}</div>`;
+    switch (c.test) {
+      case 'board': return row(B('screen', 'Тест екрана Nanit'));
+      case 'servo': return row(B('close', 'Зачинити'), B('half', 'Наполовину'), B('open', 'Відкрити')) + SVC_HINT;
+      case 'fan': return row(B('run', 'Запустити на 3 с')) + SVC_HINT;
+      case 'stepper': return row(B('open', 'Відкрити'), B('close', 'Зачинити')) + SVC_HINT;
+      case 'tlight': return row(B('r', 'Червоний'), B('y', 'Жовтий'), B('g', 'Зелений'), B('cycle', 'По черзі')) + SVC_HINT;
+      case 'rgb': return row(B('r', 'Червоний канал'), B('g', 'Зелений канал'), B('b', 'Синій канал')) + SVC_HINT;
+      case 'wait': return `<p class="small muted">Натисніть кнопку, а потім: ${c.ask.charAt(0).toLowerCase() + c.ask.slice(1)}.</p>` + row(B('wait', 'Почати перевірку'));
+      case 'buzzer': return row(B('beep', 'Писк'), B('melody', 'Мелодія'), B('siren', 'Сирена 1 с')) + '<p class="small muted" style="margin:8px 0 0">У прототипі звук грає браузер.</p>';
+      case 'dht': return row(B('read', 'Прочитати зараз'));
+      case 'mq7': case 'hcsr04': return row(B('read', 'Виміряти'));
+      case 'tm1637': return row(B('all', 'Усі сегменти (8888)'), B('stop', 'Показати «StOP»'));
+      case 'esp': return row(B('ping', 'Пінг до Nanit'));
+      case 'keypad': return '<p class="small muted">Натисніть по черзі всі клавіші на макеті: кожна має підсвітитися тут на своєму місці. У прототипі клавіші натискаються на екрані.</p><div class="kp-grid">'
+        + '123A456B789C*0#D'.split('').map(k => `<button type="button" class="kp" data-kp="${k}">${k}</button>`).join('') + '</div>'
+        + '<p class="svc-hint" data-svc-hint>Потрібен сервісний режим: у звичайному режимі натискання не передаються на ESP, щоб код охорони не потрапив у мережу.</p>';
+    }
+    return '';
+  }
+  function compHTML(c) {
+    const pins = c.pins ? `<div class="tbl"><table class="pins"><thead><tr><th scope="col">Вивід модуля</th><th scope="col">Порт Nanit</th><th scope="col">Пін Arduino</th></tr></thead><tbody>${
+      c.pins.map(p => `<tr><td>${p[0]}</td><td><code>${p[1]}</code></td><td>${p[2] === '—' ? '—' : `<code>${p[2]}</code>`}</td></tr>`).join('')}</tbody></table></div>` : '';
+    const cal = c.cal
+      ? `<form class="cal" data-cal="${c.id}" novalidate><div class="fields">${c.cal.map(f => fieldHTML(c, f)).join('')}</div>${
+        c.acts ? `<div class="cal-acts">${c.acts.map(a => `<button type="button" class="btn sm" data-cal-act="${c.id}:${a[0]}">${a[1]}</button>`).join('')}</div>` : ''
+        }<div class="form-foot"><button class="btn primary sm" type="submit">Зберегти</button><button class="btn sm" type="button" data-cal-reset="${c.id}">Типові значення</button><p class="form-msg" role="status"></p></div></form>`
+      : `<p class="small muted">${c.calNote}</p>`;
+    const links = c.links.length
+      ? `<div class="links">${c.links.map(l => `<a href="${l[1]}" target="_blank" rel="noopener">${l[0]} ↗</a>`).join('')}</div>`
+      : '<p class="small muted" style="margin:10px 0 0">Окремого даташита немає: це типовий модуль без маркування виробника.</p>';
+    return `<details class="comp" id="hw-${c.id}" data-kind="${c.kind}">
+      <summary><span class="comp-dot" data-dot="${c.id}"></span><span class="comp-main"><span class="comp-name">${c.name}</span><span class="comp-model">${c.model}${c.short ? ' · ' + c.short : ''}</span></span><span class="comp-live" data-live="${c.id}"></span><span class="pill" data-pill="${c.id}"></span>${CHEV}</summary>
+      <div class="comp-body">
+        <div>
+          <section class="blk"><h3>Перевірка</h3>${testHTML(c)}<p class="test-res" data-res="${c.id}" role="status"></p></section>
+          <section class="blk"><h3>Калібрування</h3>${cal}</section>
+        </div>
+        <div>
+          <section class="blk"><h3>Підключення</h3>${pins}<p class="wiring">${c.wiring}</p></section>
+          <section class="blk"><h3>Технічні дані</h3><dl class="specs">${c.specs.map(s => `<dt>${s[0]}</dt><dd>${s[1]}</dd>`).join('')}</dl>${links}</section>
+        </div>
+      </div>
+    </details>`;
+  }
+  $('#hw-list').innerHTML = GROUPS.map(g => {
+    const items = HW.filter(c => c.g === g.id);
+    return `<section class="hw-group" data-group="${g.id}"><div class="hw-group-head"><h2>${g.title}</h2><span class="small muted">${modules(items.length)}</span><a href="${g.diagram}" target="_blank" rel="noopener">${g.dtext || 'Схема підключення'} ↗</a></div><div class="hw-items">${items.map(compHTML).join('')}</div></section>`;
+  }).join('') + '<p class="empty" id="hw-empty" hidden>Усе обладнання працює, уваги нічого не потребує.</p>';
+
+  function statusOf(c) {
+    if (!st.online) return c.id === 'esp' ? ['err', 'Nanit не відповідає'] : ['none', 'Немає даних'];
+    if (c.id === 'hcsr04' && reading() === null) return ['err', 'Немає відлуння'];
+    if (c.id === 'sound' && !c.fixed) return ['warn', 'Спрацьовує в тиші'];
+    // «чисте повітря» вище за поточне АЦП означає, що рівень CO завжди читається як 0
+    if (c.id === 'mq7' && c.val.base >= st.mqRaw) return ['warn', 'Поріг недосяжний'];
+    if (c.id === 'keypad' && c.keys.size < 16) return ['none', c.keys.size ? `Перевірено ${c.keys.size} з 16` : 'Не перевірено'];
+    return ['ok', c.lastOk ? `Перевірено о ${hhmm(c.lastOk)}` : 'Працює'];
+  }
+  function liveOf(c, t) {
+    if (!st.online && c.id !== 'esp') return '—';
+    const recent = k => t - st.at[k] < 2500;
+    switch (c.id) {
+      case 'nanit': return `ОЗП вільно ${st.ram} Б · цикл ${st.loopMs} мс`;
+      case 'servo': { const v = c.val; return `${Math.round(v.closed + (v.open - v.closed) * st.win.pos / 100)}° · штора ${st.win.pos}%`; }
+      case 'fan': return st.fan.on ? 'Обертається' : 'Стоїть';
+      case 'stepper': return { closed: 'Зачинено', opening: 'Відкривається…', open: 'Відкрито', closing: 'Зачиняється…' }[st.gate.pos];
+      case 'tlight': return 'Світиться ' + { r: 'червоний', y: 'жовтий', g: 'зелений' }[st.tlNow];
+      case 'rgb': return st.light.on ? `Увімкнено · ${st.light.level}%` : 'Вимкнено';
+      case 'pir': return recent('pir') ? 'Рух · HIGH' : 'Спокій · LOW';
+      case 'sound': return recent('sound') ? 'Звук · LOW' : 'Тиша · HIGH';
+      case 'buzzer': return t < st.sirenUntil || (st.coAlarm && !st.coMuted) ? 'Сирена' : 'Тихо';
+      case 'window': return recent('window') ? 'Перешкода · LOW' : 'Вільно · HIGH';
+      case 'dht': return `${st.temp} °C · ${st.hum}%`;
+      case 'mq7': return c.val.base >= st.mqRaw
+        ? `АЦП ${st.mqRaw} · «чисте повітря» ${c.val.base} — рівень CO завжди 0`
+        : `АЦП ${st.mqRaw} · ${dec((st.mqRaw * 5 / 1023).toFixed(2))} В`;
+      case 'ldr': return `АЦП ${st.ldrRaw} · ${st.bright ? 'світло' : 'темно'}`;
+      case 'keypad': return c.lastKey ? `Остання клавіша: ${c.lastKey}` : 'Чекає на натискання';
+      case 'hcsr04': { const d = reading(); return d === null ? 'Немає відлуння' : `${d} см`; }
+      case 'tm1637': return `«${(segShown || '').replace(/ /g, '·')}» · яскравість ${c.val.br} з 7`;
+      case 'esp': return st.online ? `Пінг ${st.ping} мс · помилок 0` : 'Nanit не відповідає';
+    }
+    return '';
+  }
+
+  let hwFilter = 'all', statsDrawn = '', acRunning = false;
+  function renderHw(t) {
+    const counts = { ok: 0, warn: 0, err: 0, none: 0 };
+    let visible = 0;
+    for (const c of HW) {
+      const [lv, txt] = statusOf(c); counts[lv]++;
+      const dot = $(`[data-dot="${c.id}"]`), dc = 'comp-dot ' + lv;
+      if (dot.className !== dc) dot.className = dc;
+      pill($(`[data-pill="${c.id}"]`), lv === 'none' ? '' : lv, txt);
+      setText($(`[data-live="${c.id}"]`), liveOf(c, t));
+      const r = $(`[data-res="${c.id}"]`);
+      setText(r, c.result ? c.result.text : '');
+      const rc = 'test-res' + (c.result ? ' ' + c.result.level : '');
+      if (r.className !== rc) r.className = rc;
+      const show = hwFilter === 'all' || (hwFilter === 'attn' ? lv !== 'ok' : c.kind === hwFilter);
+      const el = $('#hw-' + c.id); if (el.hidden === show) el.hidden = !show;
+      if (show) visible++;
+    }
+    $$('.hw-group').forEach(g => { const any = $$('.comp', g).some(d => !d.hidden); if (g.hidden === any) g.hidden = !any; });
+    $('#hw-empty').hidden = visible > 0;
+    const key = JSON.stringify(counts) + st.online;
+    if (key !== statsDrawn) {
+      statsDrawn = key;
+      $('#hw-stats').innerHTML = [['ok', counts.ok, 'працюють'], ['warn', counts.warn, 'потребують уваги'], ['err', counts.err, 'несправні'], ['', counts.none, st.online ? 'не перевірені' : 'без даних']]
+        .map(([cl, v, l]) => `<div class="stat ${v ? cl : ''}"><b>${v}</b><span>${l}</span></div>`).join('');
+    }
+    const svc = $('#svc'); svc.dataset.on = String(st.service);
+    setText($('#svc-state'), st.service ? `увімкнено, ще ${mmss(st.serviceUntil - t)}` : 'вимкнено');
+    setText($('#svc-text'), st.service
+      ? 'Автоматика на паузі: двигуни, світло й шлагбаум рухаються лише за вашими командами. Охорона недоступна.'
+      : 'Щоб перевіряти двигуни, світло й шлагбаум, увімкніть сервісний режим. Автоматика стане на паузу, охорона буде недоступна. Режим вимкнеться сам через 10 хв.');
+    const sb = $('#svc-btn');
+    setText(sb, st.service ? 'Вимкнути' : 'Увімкнути');
+    const sbc = st.service ? 'btn primary' : 'btn'; if (sb.className !== sbc) sb.className = sbc;
+    sb.disabled = !st.service && (st.sec !== 'disarmed' || !st.online);
+    setText($('#svc-why'), st.service ? '' : st.sec !== 'disarmed' ? 'Спершу зніміть охорону.' : !st.online ? 'Nanit не на зв’язку.' : '');
+    $$('[data-svc-hint]').forEach(h => { h.hidden = st.service; });
+    const kc = HWM.keypad;
+    $$('.kp').forEach(b => { b.classList.toggle('done', kc.keys.has(b.dataset.kp)); b.classList.toggle('hit', kc.flashKey === b.dataset.kp && t < kc.flashUntil); });
+    $('#ac-btn').disabled = acRunning || !st.online;
+  }
+
+  const res = (id, level, text) => { HWM[id].result = { level, text }; };
+  const passed = (id, text, level = 'ok') => { HWM[id].lastOk = now(); res(id, level, text); };
+  function runTest(id, act) {
+    const c = HWM[id], t = now();
+    if (!st.online) {
+      res(id, 'err', id === 'esp' ? 'Nanit не відповідає. Перевірте дроти TX і RX на порту 11 та живлення Nanit.' : 'Nanit не на зв’язку, перевірка неможлива.');
+      render(); return;
+    }
+    if (SVC_TESTS.has(id) && !st.service) { toast('Спершу увімкніть сервісний режим'); return; }
+    switch (id) {
+      case 'nanit': passed(id, 'На екрані Nanit 3 с показано кольорові смуги. Перевірте, чи немає битих пікселів.'); break;
+      case 'servo': {
+        const p = { close: 0, half: 50, open: 100 }[act]; st.win.target = p;
+        passed(id, `Штора рухається в положення ${p}% (кут ${Math.round(c.val.closed + (c.val.open - c.val.closed) * p / 100)}°). Перевірте, що вона ніде не впирається.`, 'info');
+        break;
+      }
+      case 'fan': st.test.fanUntil = t + 3000; passed(id, `Двигун працює 3 с на ${c.val.speed}%. Якщо не крутиться, перевірте дроти на P1_3 і P1_4.`, 'info'); break;
+      case 'stepper': {
+        const open = act === 'open';
+        if (gateMove(open ? 'open' : 'closed', 'перевірка')) passed(id, `Шлагбаум ${open ? 'відкривається' : 'зачиняється'}: ${c.val.steps} кроків.`, 'info');
+        else res(id, 'info', `Шлагбаум уже ${open ? 'відкритий' : 'зачинений'}.`);
+        break;
+      }
+      case 'tlight':
+        if (act === 'cycle') {
+          ['r', 'y', 'g'].forEach((k, i) => setTimeout(() => { st.test.tl = k; st.test.tlUntil = now() + 800; render(); }, i * 800));
+          passed(id, 'По черзі світяться червоний, жовтий і зелений.', 'info');
+        } else {
+          st.test.tl = act; st.test.tlUntil = t + 2500;
+          passed(id, `Має світитися ${{ r: 'червоний', y: 'жовтий', g: 'зелений' }[act]} світлодіод.`, 'info');
+        }
+        break;
+      case 'rgb': {
+        const [hex, name] = { r: ['#FF3B30', 'червоний'], g: ['#34D07B', 'зелений'], b: ['#3D6BFF', 'синій'] }[act];
+        st.test.lightColor = hex; st.test.lightUntil = t + 2500;
+        passed(id, `Має світитися ${name}. Якщо світиться інший колір, змініть «Порядок каналів» нижче.`, 'info');
+        break;
+      }
+      case 'pir': case 'sound': case 'window': case 'ldr':
+        if (st.sec !== 'disarmed') { toast('Спершу зніміть охорону: перевірка датчика ввімкне тривогу'); return; }
+        if (c.waiting) return;
+        c.waiting = true; res(id, 'wait', `${c.ask}… Чекаю до 15 с.`);
+        setTimeout(() => {
+          c.waiting = false;
+          if (!st.online) { res(id, 'err', 'Зв’язок з Nanit зник під час перевірки.'); render(); return; }
+          const dt = dec(rnd(1.3, 3.1).toFixed(1));
+          if (id in st.at) st.at[id] = now();
+          if (id === 'pir') passed(id, `Рух виявлено через ${dt} с. Датчик працює.`);
+          else if (id === 'window') passed(id, `Перешкоду виявлено через ${dt} с. Датчик працює.`);
+          else if (id === 'ldr') passed(id, `Значення зросло з ${st.ldrRaw} до ${Math.min(1023, st.ldrRaw + 470)} АЦП: датчик реагує на світло.`);
+          else if (c.fixed) passed(id, `Оплеск почуто через ${dt} с. Датчик працює.`);
+          else passed(id, `Оплеск почуто через ${dt} с, але в тиші датчик теж спрацьовує. Зменште чутливість потенціометром і збережіть фільтр сплесків нижче.`, 'warn');
+          render();
+        }, 1800 + rnd(0, 1200));
+        break;
+      case 'buzzer':
+        sound(act);
+        passed(id, { beep: `Писк ${c.val.tone} Гц, 90 мс.`, melody: 'Мелодія «доступ дозволено».', siren: 'Сирена 600–1400 Гц, 1 с.' }[act], 'info');
+        break;
+      case 'dht': passed(id, `${st.temp} °C, ${st.hum}%: датчик відповів за 23 мс, контрольна сума правильна.`); break;
+      case 'mq7': passed(id, `АЦП ${st.mqRaw} (${dec((st.mqRaw * 5 / 1023).toFixed(2))} В): значення в робочому діапазоні.`); break;
+      case 'hcsr04': {
+        const d = reading();
+        if (d === null) res(id, 'err', 'Відлуння не повернулося. Перевірте, чи Echo під’єднано до P9_4 і чи немає перед датчиком м’якої або похилої поверхні.');
+        else passed(id, `${d} см: ${c.val.n} вимірів, розкид 1 см.`);
+        break;
+      }
+      case 'tm1637':
+        st.test.seg = act === 'all' ? '8888' : 'StOP'; st.test.segUntil = t + 3000;
+        passed(id, 'Дисплей підтвердив команду (ACK). Перевірте, що світяться всі потрібні сегменти.');
+        break;
+      case 'esp': passed(id, `Nanit відповів за ${st.ping} мс, помилок контрольної суми: 0.`); break;
+    }
+    render();
+  }
+  function keypadPress(k) {
+    const c = HWM.keypad;
+    if (!st.online) { res('keypad', 'err', 'Nanit не на зв’язку, перевірка неможлива.'); render(); return; }
+    if (!st.service) { toast('Спершу увімкніть сервісний режим'); return; }
+    c.keys.add(k); c.lastKey = k; c.flashKey = k; c.flashUntil = now() + 400;
+    if (c.keys.size === 16) passed('keypad', 'Усі 16 клавіш на своїх місцях.');
+    else res('keypad', 'info', `Натиснуто «${k}». Перевірено ${c.keys.size} з 16.`);
+    render();
+  }
+  function calAct(id, act) {
+    if (!st.online) { toast('Nanit не на зв’язку'); return; }
+    if (id === 'stepper' && act.startsWith('step')) {
+      if (!st.service) { toast('Спершу увімкніть сервісний режим'); return; }
+      const dn = Number(act.slice(4));
+      log('parking', `Шлагбаум довернуто на ${dn > 0 ? '+' : ''}${dn} кроків (калібрування)`);
+      toast(`Стріла рухається на ${dn > 0 ? '+' : ''}${dn} кроків. Коли стане на місце, натисніть «Позначити…»`);
+    } else if (id === 'servo' && act === 'angle') {
+      if (!st.service) { toast('Спершу увімкніть сервісний режим'); return; }
+      const a = Number($('#cal-servo-open').value);
+      if (!Number.isFinite(a) || a < 0 || a > 180) { toast('Кут «відкрито» має бути від 0 до 180°'); return; }
+      st.win.target = 100;
+      toast(`Серво стає в ${a}°. Так підбирають кут і зачеплення шестерні з рейкою`);
+    } else if (id === 'stepper') {
+      st.gate.pos = 'closed';
+      log('parking', 'Положення шлагбаума позначено як зачинене (калібрування)');
+      toast('Поточне положення шлагбаума тепер вважається зачиненим');
+    } else {
+      const [field, value] = id === 'mq7' ? ['#cal-mq7-base', st.mqRaw] : ['#cal-ldr-th', st.ldrRaw];
+      $(field).value = value;
+      toast('Підставлено поточне значення. Натисніть «Зберегти», щоб застосувати');
+    }
+    render();
+  }
+  function calSave(id, form) {
+    const c = HWM[id];
+    if (!st.online) { formMsg(form, 'Nanit не на зв’язку, тому калібрування не збережено.', true); return; }
+    const v = {};
+    for (const f of c.cal) {
+      const el = $(`#cal-${id}-${f.k}`);
+      if (f.type === 'check') { v[f.k] = el.checked; continue; }
+      if (f.type === 'select') { v[f.k] = el.value; continue; }
+      const x = Number(el.value);
+      if (el.value === '' || !Number.isFinite(x) || x < f.min || x > f.max) {
+        formMsg(form, `«${f.label}»: від ${f.min} до ${f.max}${f.unit ? ' ' + f.unit : ''}.`, true); el.focus(); return;
+      }
+      v[f.k] = x;
+    }
+    if (id === 'servo' && v.closed === v.open) { formMsg(form, 'Кути «зачинено» й «відкрито» мають відрізнятися.', true); return; }
+    if (id === 'mq7' && v.base >= st.mqRaw) {
+      formMsg(form, `«Чисте повітря» ${v.base} вище за поточне АЦП ${st.mqRaw}: рівень CO завжди читатиметься як 0, і тривога не спрацює. Натисніть «Взяти поточне значення».`, true);
+      return;
+    }
+    c.val = v;
+    if (id === 'sound') c.fixed = true;
+    if (id === 'ldr') stepLdr();
+    if (id === 'mq7') renderCoHints();
+    formMsg(form, 'Збережено на Nanit.', false);
+    log('system', `Калібрування збережено: «${c.name}»`);
+    render();
+  }
+  function calReset(id) {
+    const c = HWM[id];
+    for (const f of c.cal) {
+      const el = $(`#cal-${id}-${f.k}`);
+      if (f.type === 'check') el.checked = f.def; else el.value = f.def;
+      if (f.type === 'range') el.parentElement.querySelector('output').textContent = f.def;
+    }
+    formMsg($(`form[data-cal="${id}"]`), 'Підставлено типові значення. Натисніть «Зберегти», щоб застосувати.', false);
+  }
+
+  $$('input[name="hf"]').forEach(i => i.addEventListener('change', () => { hwFilter = i.value; renderHw(now()); }));
+  $('#svc-btn').addEventListener('click', () => setService(!st.service, 'вебінтерфейс'));
+  const hwList = $('#hw-list');
+  hwList.addEventListener('click', e => {
+    const kp = e.target.closest('[data-kp]'); if (kp) { keypadPress(kp.dataset.kp); return; }
+    const tb = e.target.closest('[data-t]'); if (tb) { const [id, act] = tb.dataset.t.split(':'); runTest(id, act); return; }
+    const ca = e.target.closest('[data-cal-act]'); if (ca) { const [id, act] = ca.dataset.calAct.split(':'); calAct(id, act); return; }
+    const cr = e.target.closest('[data-cal-reset]'); if (cr) calReset(cr.dataset.calReset);
+  });
+  hwList.addEventListener('submit', e => { e.preventDefault(); calSave(e.target.dataset.cal, e.target); });
+  hwList.addEventListener('input', e => {
+    if (e.target.type !== 'range') return;
+    const o = e.target.parentElement.querySelector('output'); if (o) o.textContent = e.target.value;
+  });
+
+  $('#ac-btn').addEventListener('click', () => {
+    if (acRunning || !st.online) return;
+    acRunning = true;
+    const list = $('#ac-list');
+    $('#autocheck').hidden = false; list.innerHTML = ''; setText($('#ac-sum'), '');
+    const steps = [
+      ['nanit', () => [true, `Контролер Nanit: вільно ${st.ram} Б ОЗП, цикл ${st.loopMs} мс`]],
+      ['esp', () => [true, `Модуль Wi-Fi: пінг ${st.ping} мс, помилок контрольної суми 0`]],
+      ['dht', () => [true, `DHT11: ${st.temp} °C, ${st.hum}%, контрольна сума правильна`]],
+      ['mq7', () => [st.mqRaw > 20 && st.mqRaw < 1000, `MQ-7: АЦП ${st.mqRaw}, у робочому діапазоні`]],
+      ['ldr', () => [st.ldrRaw > 5 && st.ldrRaw < 1018, `Датчик освітленості: АЦП ${st.ldrRaw}, у робочому діапазоні`]],
+      ['hcsr04', () => { const d = reading(); return d === null ? [false, 'HC-SR04: відлуння не повернулося'] : [true, `HC-SR04: ${d} см`]; }],
+      ['tm1637', () => [true, 'TM1637: дисплей підтвердив команду (ACK)']]
+    ];
+    let i = 0, ok = 0;
+    const next = () => {
+      if (i >= steps.length || !st.online) {
+        acRunning = false; setText($('#ac-progress'), '');
+        setText($('#ac-sum'), st.online
+          ? `Автоматично перевірено ${steps.length} компонентів: ${ok} в нормі${i - ok ? `, ${i - ok} з помилкою` : ''}. Решту ${HW.length - steps.length} перевірте вручну: їм потрібна ваша дія або сервісний режим.`
+          : 'Перевірку перервано: зв’язок з Nanit зник.');
+        render(); return;
+      }
+      const [id, fn] = steps[i];
+      setText($('#ac-progress'), `${i + 1} з ${steps.length}`);
+      const li = document.createElement('li'); li.className = 'wait'; li.textContent = `${HWM[id].name}…`; list.appendChild(li);
+      setTimeout(() => {
+        const [good, text] = fn();
+        li.className = good ? 'ok' : 'err'; li.textContent = text;
+        if (good) { ok++; passed(id, text); } else res(id, 'err', text);
+        i++; next();
+      }, 450);
+    };
+    render(); next();
+  });
+
+  /* ---------- старт ---------- */
+  fillSettings();
+  try { const v = localStorage.getItem('zh-view'); if (v && $(`[data-panel="${v}"]`)) show(v); } catch (e) {}
+  stepFan(); stepWindow(now()); stepLight(now());
+  buildScreenRows();
+  planFlip('a');
+  render();
+  setInterval(() => { tickN++; step(); render(); }, 500);
+})();
+</script>
+</body>
+</html>
